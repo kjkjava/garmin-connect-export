@@ -173,7 +173,7 @@ class GarminHandler( object ):
                 raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
                 
         return data   
-        
+
 ## End of Class ##
 
 ## Tools ##
