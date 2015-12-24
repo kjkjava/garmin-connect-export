@@ -111,58 +111,31 @@ for a in activities_generator:
     else:
         print '0.00 Miles'
     
-    # TODO MM: save gpx/tcx/original file
-    # if args.format == 'gpx':
-        # data_filename = args.directory + '/activity_' + a['activityId'] + '.gpx'
-        # download_url = url_gc_gpx_activity + a['activityId'] + '?full=true'
-        # file_mode = 'w'
-    # elif args.format == 'tcx':
-        # data_filename = args.directory + '/activity_' + a['activityId'] + '.tcx'
-        # download_url = url_gc_tcx_activity + a['activityId'] + '?full=true'
-        # file_mode = 'w'
-    # elif args.format == 'original':
-        # data_filename = args.directory + '/activity_' + a['activityId'] + '.zip'
-        # fit_filename = args.directory + '/' + a['activityId'] + '.fit'
-        # download_url = url_gc_original_activity + a['activityId']
-        # file_mode = 'wb'
-    # else:
-        # raise Exception('Unrecognized format.')
+    # Download the data file from Garmin Connect.
+    # If the download fails (e.g., due to timeout), this script will die, but nothing
+    # will have been written to disk about this activity, so just running it again
+    # should pick up where it left off.
+    print '\tDownloading file...'
+    data = garmin_handler.getFileByID( a['activityId'], args.format )
+    
+    if args.format == 'original':
+        data_filename = "%s/activity_%s.%s" % (args.directory, a['activityId'], 'zip')
+        fit_filename = args.directory + '/' + a['activityId'] + '.fit'
+        file_mode = 'wb'
+    else:
+        data_filename = "%s/activity_%s.%s" % (args.directory, a['activityId'], args.format)
+        file_mode = 'w'
 
-    # if isfile(data_filename):
-        # print '\tData file already exists; skipping...'
-        # continue
-    # if args.format == 'original' and isfile(fit_filename):  # Regardless of unzip setting, don't redownload if the ZIP or FIT file exists.
-        # print '\tFIT data file already exists; skipping...'
-        # continue
+    if isfile(data_filename):
+        print '\tData file already exists; skipping...'
+        continue
+    if args.format == 'original' and isfile(fit_filename):  # Regardless of unzip setting, don't redownload if the ZIP or FIT file exists.
+        print '\tFIT data file already exists; skipping...'
+        continue
 
-    # # Download the data file from Garmin Connect.
-    # # If the download fails (e.g., due to timeout), this script will die, but nothing
-    # # will have been written to disk about this activity, so just running it again
-    # # should pick up where it left off.
-    # print '\tDownloading file...',
-
-    # try:
-        # data = http_req(download_url)
-    # except urllib2.HTTPError as e:
-        # # Handle expected (though unfortunate) error codes; die on unexpected ones.
-        # if e.code == 500 and args.format == 'tcx':
-            # # Garmin will give an internal server error (HTTP 500) when downloading TCX files if the original was a manual GPX upload.
-            # # Writing an empty file prevents this file from being redownloaded, similar to the way GPX files are saved even when there are no tracks.
-            # # One could be generated here, but that's a bit much. Use the GPX format if you want actual data in every file,
-            # # as I believe Garmin provides a GPX file for every activity.
-            # print 'Writing empty file since Garmin did not generate a TCX file for this activity...',
-            # data = ''
-        # elif e.code == 404 and args.format == 'original':
-            # # For manual activities (i.e., entered in online without a file upload), there is no original file.
-            # # Write an empty file to prevent redownloading it.
-            # print 'Writing empty file since there was no original activity data...',
-            # data = ''
-        # else:
-            # raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
-
-    # save_file = open(data_filename, file_mode)
-    # save_file.write(data)
-    # save_file.close()
+    save_file = open(data_filename, file_mode)
+    save_file.write(data)
+    save_file.close()
 
     # Write stats to CSV.
     
@@ -232,31 +205,33 @@ for a in activities_generator:
         # )
     
     # TODO MM file validation?
-    # if args.format == 'gpx':
-        # # Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
-        # # Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
-        # # N.B. You can omit the XML parse (and the associated log messages) to speed things up.
-        # gpx = parseString(data)
-        # gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
 
-        # if gpx_data_exists:
-            # print 'Done. GPX data saved.'
-        # else:
-            # print 'Done. No track points found.'
-    # elif args.format == 'original':
-        # if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
-            # print "Unzipping and removing original files...",
-            # zip_file = open(data_filename, 'rb')
-            # z = zipfile.ZipFile(zip_file)
-            # for name in z.namelist():
-                # z.extract(name, args.directory)
-            # zip_file.close()
-            # remove(data_filename)
-        # print 'Done.'
-    # else:
-        # # TODO: Consider validating other formats.
-        # print 'Done.'
+    # Validate data. 24-12-2015: is this needed?
+    if args.format == 'gpx':
+        # Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
+        # Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
+        # N.B. You can omit the XML parse (and the associated log messages) to speed things up.
+        gpx = parseString(data)
+        gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
 
+        if gpx_data_exists:
+            print 'Done. GPX data saved.'
+        else:
+            print 'Done. No track points found.'
+    elif args.format == 'original':
+        if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
+            print "Unzipping and removing original files...",
+            zip_file = open(data_filename, 'rb')
+            z = zipfile.ZipFile(zip_file)
+            for name in z.namelist():
+                z.extract(name, args.directory)
+            zip_file.close()
+            remove(data_filename)
+        print 'Done.'
+    else:
+        # TODO: Consider validating other formats.
+        print 'Done.'
+         
 csv_file.close()
 
 print 'Done!'

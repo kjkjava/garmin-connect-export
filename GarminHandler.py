@@ -15,9 +15,10 @@ class GarminHandler( object ):
     URL_LOGIN     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
     URL_POST_AUTH = 'https://connect.garmin.com/post-auth/login?'
     URL_SEARCH    = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
-    URL_GPX_ACTIVITY  = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/%s?full=true'
-    URL_TCX_ACTIVITY  = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true'
-    URL_ORIGINAL_ACTIVITY  = 'http://connect.garmin.com/proxy/download-service/files/activity/'
+    URL_GPX_ACTIVITY = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/%s?full=true'
+    URL_TCX_ACTIVITY = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/%s?full=true'
+    URL_ZIP_ACTIVITY = 'http://connect.garmin.com/proxy/download-service/files/activity/%s'
+    URL_CSV_ACTIVITY = 'http://connect.garmin.com/csvExporter/%s.csv'
     JSON_DOWNLOAD_LIMIT = 100 # Maximum number of activities to request at once. 100 is the maximum set and enforced by Garmin. 
     #JSON_DOWNLOAD_LIMIT = 10 # but 10 is faster if few activities to retrieve.
     
@@ -125,19 +126,35 @@ class GarminHandler( object ):
             Returns list of new activities. """
         
         activities = self.activitiesGenerator()
-        for activity in activities:
-            act_id = activityDict.getID( activity )
+        for activity_dict in activities:
+            act = ActivityJSON( activity_dict )
+            
+            act_id = act.getID()
             if act_id in existing_ids:
                 break
             
-            if activityDict.isRun( activity ):
-                yield activity
+            if act.isRun():
+                yield activity_dict
+                
+    def getFileByID( self, activity_id, fileformat = 'tcx' ):
+        """ Downloads and returns data of given activity """
         
-    def downloadTCXbyID( self, activity_id ):
-        """ Returns content of TCX """
-        # TODO: Finish and test this function
-        download_url = self.URL_TCX_ACTIVITY % activity_id
+        if fileformat == 'tcx':
+            download_url = self.URL_TCX_ACTIVITY % activity_id
+            
+        elif fileformat == 'gpx':
+            download_url = self.URL_GPX_ACTIVITY % activity_id
+            
+        elif fileformat == 'original':
+            download_url = self.URL_ZIP_ACTIVITY % activity_id
+            
+        elif fileformat == 'csv': #lap data
+            download_url = self.URL_CSV_ACTIVITY % activity_id
+            
+        else:
+            raise Exception('Unrecognized download file format. Supported: tcx,gpx,original and csv')
         
+        # Download
         try:
             data = http_req( self.opener, download_url )
         except urllib2.HTTPError as e:
@@ -145,15 +162,21 @@ class GarminHandler( object ):
             if e.code == 500:
                 # Garmin will give an internal server error (HTTP 500) when downloading TCX files if the original was a manual GPX upload.
                 # One could be generated here, but that's a bit much. Use the GPX format if you want actual data in every file, as I believe Garmin provides a GPX file for every activity.
-                print 'Writing empty file since Garmin did not generate a TCX file for this activity...',
+                print 'Returning empty file since Garmin did not generate a TCX file for this activity...'
+                data = ''
+            elif e.code == 404:
+                # For manual activities (i.e., entered in online without a file upload), there is no original file.
+                # Write an empty file to prevent redownloading it.
+                print 'Returning empty file since there was no original activity data...',
                 data = ''
             else:
                 raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
+                
+        return data   
         
-        return data
 ## End of Class ##
 
-##Tools
+## Tools ##
 def http_req(opener, url, post=None, headers={}):
     """ url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers. """
     request = urllib2.Request(url)
