@@ -1,3 +1,4 @@
-
+[0-9\-]*_garmin_connect_export
+.*.swp
 .DS_Store
 extras/
