@@ -1,3 +1,3 @@
-
+*.config
 .DS_Store
 extras/
