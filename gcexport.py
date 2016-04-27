@@ -389,32 +389,21 @@ while total_downloaded < total_to_download:
 
         csv_record = ''
 
-        csv_record += (empty_record if 'activityId' not in A
-                       else '"' + A['activityId']
-                            .replace('"', '""') + '",')
-        csv_record += (empty_record if 'activityName' not in A
-                       else '"' + A['activityName']['value']
-                            .replace('"', '""') + '",')
-        csv_record += (empty_record
-                       if 'activityDescription' not in A
-                       else '"' + A['activityDescription']['value']
-                            .replace('"', '""') + '",')
+        def field_format(key1, key2=None):
+            if key2:
+                return (empty_record if key1 not in A
+                        else '"' + A[key1][key2].replace('"', '""') + '",')
+            else:
+                return (empty_record if key1 not in A
+                        else '"' + A[key1].replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'beginTimestamp' not in A
-                       else '"' + A['beginTimestamp']['display']
-                            .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'beginTimestamp' not in A
-                       else '"' + A['beginTimestamp']['millis']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'endTimestamp' not in A
-                       else '"' + A['endTimestamp']['display']
-                            .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'endTimestamp' not in A
-                       else '"' + A['endTimestamp']['millis']
-                       .replace('"', '""') + '",')
+        csv_record += field_format('activityId')
+        csv_record += field_format('activityName', 'value')
+        csv_record += field_format('activityDescription', 'value')
+        csv_record += field_format('beginTimestamp', 'display')
+        csv_record += field_format('beginTimestamp', 'millis')
+        csv_record += field_format('endTimestamp', 'display')
+        csv_record += field_format('endTimestamp', 'millis')
 
         csv_record += (empty_record if 'device' not in A
                        else '"' +
@@ -428,131 +417,45 @@ while total_downloaded < total_to_download:
                        A['activityType']['parent']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'activityType' not in A
-                       else '"' + A['activityType']['display']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'eventType' not in A
-                       else '"' + A['eventType']['display']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'activityTimeZone' not in A
-                       else '"' + A['activityTimeZone']['display']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'maxElevation' not in A
-                       else '"' +
-                       A['maxElevation']['withUnit']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'maxElevation' not in A
-                       else '"' +
-                       A['maxElevation']['value']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'beginLatitude' not in A
-                       else '"' +
-                       A['beginLatitude']['value']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'beginLongitude' not in A
-                       else '"' + A['beginLongitude']['value']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'endLatitude' not in A
-                       else '"' +
-                       A['endLatitude']['value']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'endLongitude' not in A
-                       else '"' +
-                       A['endLongitude']['value']
-                       .replace('"', '""') + '",')
+        csv_record += field_format('activityType', 'display')
+        csv_record += field_format('eventType', 'display')
+        csv_record += field_format('activityTimeZone', 'display')
+        csv_record += field_format('maxElevation', 'withUnit')
+        csv_record += field_format('maxElevation', 'value')
+        csv_record += field_format('beginLatitude', 'value')
+        csv_record += field_format('beginLongitude', 'value')
+        csv_record += field_format('endLatitude', 'value')
+        csv_record += field_format('endLongitude', 'value')
 
         # The units vary between Minutes per Mile and mph, but withUnit always
         # displays "Minutes per Mile"
-        csv_record += (empty_record
-                       if 'weightedMeanMovingSpeed' not in A
-                       else '"' +
-                       A['weightedMeanMovingSpeed']['display']
-                       .replace('"', '""') + '",')
+        csv_record += field_format('weightedMeanMovingSpeed', 'display')
+        csv_record += field_format('weightedMeanMovingSpeed', 'value')
+        csv_record += field_format('maxHeartRate', 'display')
 
-        csv_record += (empty_record
-                       if 'weightedMeanMovingSpeed' not in A
-                       else
-                       '"' + A['weightedMeanMovingSpeed']['value']
-                       .replace('"', '""') + '",')
-
-        csv_record += (empty_record if 'maxHeartRate' not in A
-                       else '"' +
-                       A['maxHeartRate']['display']
-                       .replace('"', '""') +
-                       '",')
-
-        csv_record += (empty_record
-                       if 'weightedMeanHeartRate' not in A
-                       else
-                       '"' + A['weightedMeanHeartRate']['display']
-                       .replace('"', '""') + '",')
+        csv_record += field_format('weightedMeanHeartRate', 'display')
 
         # The units vary between Minutes per Mile and mph, but withUnit always
         # displays "Minutes per Mile"
-        csv_record += (empty_record if 'maxSpeed' not in A
-                       else '"' + A['maxSpeed']['display']
-                       .replace('"', '""') + '",')
+        csv_record += field_format('maxSpeed', 'display')
 
-        csv_record += (empty_record if 'sumEnergy' not in A
-                       else '"' + A['sumEnergy']['display']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumEnergy' not in A
-                       else '"' + A['sumEnergy']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumElapsedDuration' not in A
-                       else '"' + A['sumElapsedDuration']['display']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record
-                       if 'sumElapsedDuration' not in A
-                       else '"' + A['sumElapsedDuration']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumMovingDuration' not in A
-                       else '"' + A['sumMovingDuration']['display']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumMovingDuration' not in A
-                       else '"' + A['sumMovingDuration']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'weightedMeanSpeed' not in A
-                       else '"' + A['weightedMeanSpeed']['withUnit']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'weightedMeanSpeed' not in A
-                       else '"' + A['weightedMeanSpeed']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumDistance' not in A
-                       else '"' + A['sumDistance']['withUnit']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumDistance' not in A
-                       else '"' + A['sumDistance']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'minHeartRate' not in A
-                       else '"' + A['minHeartRate']['display']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'maxElevation' not in A
-                       else '"' + A['maxElevation']['withUnit']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'maxElevation' not in A
-                       else '"' + A['maxElevation']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'gainElevation' not in A
-                       else '"' + A['gainElevation']['withUnit']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'gainElevation' not in A
-                       else '"' + A['gainElevation']['value']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'lossElevation' not in A
-                       else '"' + A['lossElevation']['withUnit']
-                       .replace('"', '""') + '",')
-        csv_record += (empty_record if 'lossElevation' not in A
-                       else '"' + A['lossElevation']['value']
-                       .replace('"', '""') + '"')
+        csv_record += field_format('sumEnergy', 'display')
+        csv_record += field_format('sumEnergy', 'value')
+        csv_record += field_format('sumElapsedDuration', 'display')
+        csv_record += field_format('sumElapsedDuration', 'value')
+        csv_record += field_format('sumMovingDuration', 'display')
+        csv_record += field_format('sumMovingDuration', 'value')
+        csv_record += field_format('weightedMeanSpeed', 'withUnit')
+        csv_record += field_format('weightedMeanSpeed', 'value')
+        csv_record += field_format('sumDistance', 'withUnit')
+        csv_record += field_format('sumDistance', 'value')
+        csv_record += field_format('minHeartRate', 'display')
+        csv_record += field_format('maxElevation', 'withUnit')
+        csv_record += field_format('maxElevation', 'value')
+        csv_record += field_format('gainElevation', 'withUnit')
+        csv_record += field_format('gainElevation', 'value')
+        csv_record += field_format('lossElevation', 'withUnit')
+        csv_record += field_format('lossElevation', 'value')
         csv_record += '\n'
 
         csv_file.write(csv_record.encode('utf8'))
