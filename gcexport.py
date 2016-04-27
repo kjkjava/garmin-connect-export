@@ -285,20 +285,22 @@ while total_downloaded < total_to_download:
 
     # Process each activity.
     for a in activities:
+        A = a['activity']
+
         # Display which entry we're working on.
         info = {
-            "id": a['activity']['activityId'],
-            "name": a['activity']['activityName']['value'],
-            "timestamp": a['activity']['beginTimestamp']['display'],
+            "id": A['activityId'],
+            "name": A['activityName']['value'],
+            "timestamp": A['beginTimestamp']['display'],
             "duration": "??:??:??",
             "distance": "0.00 Miles"
         }
 
-        if "sumElapsedDuration" in a["activity"]:
-            info["duration"] = a["activity"]["sumElapsedDuration"]["display"]
+        if "sumElapsedDuration" in A:
+            info["duration"] = A["sumElapsedDuration"]["display"]
 
-        if "sumDistance" in a["activity"]:
-            info["distance"] = a["activity"]["sumDistance"]["withUnit"]
+        if "sumDistance" in A:
+            info["distance"] = A["sumDistance"]["withUnit"]
 
         print("Garmin Connect activity: [{id}]{name}\n"
               "\t{timestamp}, {duration}, {distance}"
@@ -353,13 +355,14 @@ while total_downloaded < total_to_download:
             # Handle expected (though unfortunate) error codes; die on
             # unexpected ones.
             if e.code == 500 and args.format == 'tcx':
-            # Garmin will give an internal server error (HTTP 500) when
-            # downloading TCX files if the original was a manual GPX upload.
-            # Writing an empty file prevents this file from being redownloaded,
-            # similar to the way GPX files are saved even when there are no
-            # tracks. One could be generated here, but that's a bit much. Use
-            # the GPX format if you want actual data in every file, as I
-            # believe Garmin provides a GPX file for every activity.
+                # Garmin will give an internal server error (HTTP 500) when
+                # downloading TCX files if the original was a manual GPX upload.
+                # Writing an empty file prevents this file from being
+                # redownloaded, similar to the way GPX files are saved even when
+                # there are no tracks. One could be generated here, but that's
+                # a bit much. Use the GPX format if you want actual data in
+                # every file, as I believe Garmin provides a GPX file for every
+                # activity.
                 print("Writing empty file since Garmin did not"
                       " generate a TCX file for this activity...")
                 data = ''
@@ -386,169 +389,169 @@ while total_downloaded < total_to_download:
 
         csv_record = ''
 
-        csv_record += (empty_record if 'activityId' not in a['activity']
-                       else '"' + a['activity']['activityId']
+        csv_record += (empty_record if 'activityId' not in A
+                       else '"' + A['activityId']
                             .replace('"', '""') + '",')
-        csv_record += (empty_record if 'activityName' not in a['activity']
-                       else '"' + a['activity']['activityName']['value']
+        csv_record += (empty_record if 'activityName' not in A
+                       else '"' + A['activityName']['value']
                             .replace('"', '""') + '",')
         csv_record += (empty_record
-                       if 'activityDescription' not in a['activity']
-                       else '"' + a['activity']['activityDescription']['value']
+                       if 'activityDescription' not in A
+                       else '"' + A['activityDescription']['value']
                             .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'beginTimestamp' not in a['activity']
-                       else '"' + a['activity']['beginTimestamp']['display']
+        csv_record += (empty_record if 'beginTimestamp' not in A
+                       else '"' + A['beginTimestamp']['display']
                             .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'beginTimestamp' not in a['activity']
-                       else '"' + a['activity']['beginTimestamp']['millis']
+        csv_record += (empty_record if 'beginTimestamp' not in A
+                       else '"' + A['beginTimestamp']['millis']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'endTimestamp' not in a['activity']
-                       else '"' + a['activity']['endTimestamp']['display']
+        csv_record += (empty_record if 'endTimestamp' not in A
+                       else '"' + A['endTimestamp']['display']
                             .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'endTimestamp' not in a['activity']
-                       else '"' + a['activity']['endTimestamp']['millis']
+        csv_record += (empty_record if 'endTimestamp' not in A
+                       else '"' + A['endTimestamp']['millis']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'device' not in a['activity']
+        csv_record += (empty_record if 'device' not in A
                        else '"' +
-                       a['activity']['device']['display'].replace('"', '""') +
+                       A['device']['display'].replace('"', '""') +
                        ' ' +
-                       a['activity']['device']['version'].replace('"', '""') +
+                       A['device']['version'].replace('"', '""') +
                        '",')
 
-        csv_record += (empty_record if 'activityType' not in a['activity']
+        csv_record += (empty_record if 'activityType' not in A
                        else '"' +
-                       a['activity']['activityType']['parent']['display']
+                       A['activityType']['parent']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'activityType' not in a['activity']
-                       else '"' + a['activity']['activityType']['display']
+        csv_record += (empty_record if 'activityType' not in A
+                       else '"' + A['activityType']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'eventType' not in a['activity']
-                       else '"' + a['activity']['eventType']['display']
+        csv_record += (empty_record if 'eventType' not in A
+                       else '"' + A['eventType']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'activityTimeZone' not in a['activity']
-                       else '"' + a['activity']['activityTimeZone']['display']
+        csv_record += (empty_record if 'activityTimeZone' not in A
+                       else '"' + A['activityTimeZone']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'maxElevation' not in a['activity']
+        csv_record += (empty_record if 'maxElevation' not in A
                        else '"' +
-                       a['activity']['maxElevation']['withUnit']
+                       A['maxElevation']['withUnit']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'maxElevation' not in a['activity']
+        csv_record += (empty_record if 'maxElevation' not in A
                        else '"' +
-                       a['activity']['maxElevation']['value']
+                       A['maxElevation']['value']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'beginLatitude' not in a['activity']
+        csv_record += (empty_record if 'beginLatitude' not in A
                        else '"' +
-                       a['activity']['beginLatitude']['value']
+                       A['beginLatitude']['value']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'beginLongitude' not in a['activity']
-                       else '"' + a['activity']['beginLongitude']['value']
+        csv_record += (empty_record if 'beginLongitude' not in A
+                       else '"' + A['beginLongitude']['value']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'endLatitude' not in a['activity']
+        csv_record += (empty_record if 'endLatitude' not in A
                        else '"' +
-                       a['activity']['endLatitude']['value']
+                       A['endLatitude']['value']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'endLongitude' not in a['activity']
+        csv_record += (empty_record if 'endLongitude' not in A
                        else '"' +
-                       a['activity']['endLongitude']['value']
+                       A['endLongitude']['value']
                        .replace('"', '""') + '",')
 
         # The units vary between Minutes per Mile and mph, but withUnit always
         # displays "Minutes per Mile"
         csv_record += (empty_record
-                       if 'weightedMeanMovingSpeed' not in a['activity']
+                       if 'weightedMeanMovingSpeed' not in A
                        else '"' +
-                       a['activity']['weightedMeanMovingSpeed']['display']
+                       A['weightedMeanMovingSpeed']['display']
                        .replace('"', '""') + '",')
 
         csv_record += (empty_record
-                       if 'weightedMeanMovingSpeed' not in a['activity']
+                       if 'weightedMeanMovingSpeed' not in A
                        else
-                       '"' + a['activity']['weightedMeanMovingSpeed']['value']
+                       '"' + A['weightedMeanMovingSpeed']['value']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'maxHeartRate' not in a['activity']
+        csv_record += (empty_record if 'maxHeartRate' not in A
                        else '"' +
-                       a['activity']['maxHeartRate']['display']
+                       A['maxHeartRate']['display']
                        .replace('"', '""') +
                        '",')
 
         csv_record += (empty_record
-                       if 'weightedMeanHeartRate' not in a['activity']
+                       if 'weightedMeanHeartRate' not in A
                        else
-                       '"' + a['activity']['weightedMeanHeartRate']['display']
+                       '"' + A['weightedMeanHeartRate']['display']
                        .replace('"', '""') + '",')
 
         # The units vary between Minutes per Mile and mph, but withUnit always
         # displays "Minutes per Mile"
-        csv_record += (empty_record if 'maxSpeed' not in a['activity']
-                       else '"' + a['activity']['maxSpeed']['display']
+        csv_record += (empty_record if 'maxSpeed' not in A
+                       else '"' + A['maxSpeed']['display']
                        .replace('"', '""') + '",')
 
-        csv_record += (empty_record if 'sumEnergy' not in a['activity']
-                       else '"' + a['activity']['sumEnergy']['display']
+        csv_record += (empty_record if 'sumEnergy' not in A
+                       else '"' + A['sumEnergy']['display']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumEnergy' not in a['activity']
-                       else '"' + a['activity']['sumEnergy']['value']
+        csv_record += (empty_record if 'sumEnergy' not in A
+                       else '"' + A['sumEnergy']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumElapsedDuration' not in a['activity']
-                       else '"' + a['activity']['sumElapsedDuration']['display']
+        csv_record += (empty_record if 'sumElapsedDuration' not in A
+                       else '"' + A['sumElapsedDuration']['display']
                        .replace('"', '""') + '",')
         csv_record += (empty_record
-                       if 'sumElapsedDuration' not in a['activity']
-                       else '"' + a['activity']['sumElapsedDuration']['value']
+                       if 'sumElapsedDuration' not in A
+                       else '"' + A['sumElapsedDuration']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumMovingDuration' not in a['activity']
-                       else '"' + a['activity']['sumMovingDuration']['display']
+        csv_record += (empty_record if 'sumMovingDuration' not in A
+                       else '"' + A['sumMovingDuration']['display']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumMovingDuration' not in a['activity']
-                       else '"' + a['activity']['sumMovingDuration']['value']
+        csv_record += (empty_record if 'sumMovingDuration' not in A
+                       else '"' + A['sumMovingDuration']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'weightedMeanSpeed' not in a['activity']
-                       else '"' + a['activity']['weightedMeanSpeed']['withUnit']
+        csv_record += (empty_record if 'weightedMeanSpeed' not in A
+                       else '"' + A['weightedMeanSpeed']['withUnit']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'weightedMeanSpeed' not in a['activity']
-                       else '"' + a['activity']['weightedMeanSpeed']['value']
+        csv_record += (empty_record if 'weightedMeanSpeed' not in A
+                       else '"' + A['weightedMeanSpeed']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumDistance' not in a['activity']
-                       else '"' + a['activity']['sumDistance']['withUnit']
+        csv_record += (empty_record if 'sumDistance' not in A
+                       else '"' + A['sumDistance']['withUnit']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'sumDistance' not in a['activity']
-                       else '"' + a['activity']['sumDistance']['value']
+        csv_record += (empty_record if 'sumDistance' not in A
+                       else '"' + A['sumDistance']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'minHeartRate' not in a['activity']
-                       else '"' + a['activity']['minHeartRate']['display']
+        csv_record += (empty_record if 'minHeartRate' not in A
+                       else '"' + A['minHeartRate']['display']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'maxElevation' not in a['activity']
-                       else '"' + a['activity']['maxElevation']['withUnit']
+        csv_record += (empty_record if 'maxElevation' not in A
+                       else '"' + A['maxElevation']['withUnit']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'maxElevation' not in a['activity']
-                       else '"' + a['activity']['maxElevation']['value']
+        csv_record += (empty_record if 'maxElevation' not in A
+                       else '"' + A['maxElevation']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'gainElevation' not in a['activity']
-                       else '"' + a['activity']['gainElevation']['withUnit']
+        csv_record += (empty_record if 'gainElevation' not in A
+                       else '"' + A['gainElevation']['withUnit']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'gainElevation' not in a['activity']
-                       else '"' + a['activity']['gainElevation']['value']
+        csv_record += (empty_record if 'gainElevation' not in A
+                       else '"' + A['gainElevation']['value']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'lossElevation' not in a['activity']
-                       else '"' + a['activity']['lossElevation']['withUnit']
+        csv_record += (empty_record if 'lossElevation' not in A
+                       else '"' + A['lossElevation']['withUnit']
                        .replace('"', '""') + '",')
-        csv_record += (empty_record if 'lossElevation' not in a['activity']
-                       else '"' + a['activity']['lossElevation']['value']
+        csv_record += (empty_record if 'lossElevation' not in A
+                       else '"' + A['lossElevation']['value']
                        .replace('"', '""') + '"')
         csv_record += '\n'
 
