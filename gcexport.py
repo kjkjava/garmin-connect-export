@@ -26,6 +26,13 @@ import json
 import argparse
 import zipfile
 
+import logging
+
+logging.basicConfig(filename='example.log',
+                    format='%(levelname)s:%(message)s',
+                    level=logging.DEBUG)
+
+
 script_version = '1.0.0'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
@@ -74,7 +81,7 @@ parser.add_argument('-u', '--unzip',
 args = parser.parse_args()
 
 if args.version:
-    print("{}, version {}".format(argv[0], script_version))
+    logging.info("%s, version %s", argv[0], script_version)
     exit(0)
 
 cookie_jar = cookielib.CookieJar()
@@ -87,12 +94,11 @@ opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
 def http_req(url, post=None, headers={}):
     request = urllib2.Request(url)
     # Tell Garmin we're some supported browser.
-    request.add_header(
-        "User-Agent",
-        ("Mozilla/5.0 (X11; Linux x86_64)"
-         " AppleWebKit/537.36 (KHTML, like Gecko)"
-         " Chrome/1337 Safari/537.36")
-    )
+    request.add_header("User-Agent",
+                       ("Mozilla/5.0 (X11; Linux x86_64)"
+                        " AppleWebKit/537.36 (KHTML, like Gecko)"
+                        " Chrome/1337 Safari/537.36")
+                       )
 
     for header_key, header_value in headers.iteritems():
         request.add_header(header_key, header_value)
@@ -111,12 +117,12 @@ def http_req(url, post=None, headers={}):
 
     return response.read()
 
-print('Welcome to Garmin Connect Exporter!')
+logging.info('Welcome to Garmin Connect Exporter!')
 
 # Create directory for data files.
 if isdir(args.directory):
-    print("Warning: Output directory already exists."
-          " Will skip already-downloaded files and append to the CSV file.")
+    logging.info("Warning: Output directory already exists."
+                 " Will skip already-downloaded files and append to the CSV file.")
 
 username = args.username if args.username else raw_input('Username: ')
 password = args.password if args.password else getpass()
@@ -206,8 +212,8 @@ if not csv_existed:
         "Begin Timestamp,"
         "Begin Timestamp (Raw Milliseconds),"
         "End Timestamp,"
-        "End Timestamp (Raw Milliseconds)"
-        ",Device,"
+        "End Timestamp (Raw Milliseconds),"
+        "Device,"
         "Activity Parent,"
         "Activity Type,"
         "Event Type,"
@@ -302,9 +308,9 @@ while total_downloaded < total_to_download:
         if "sumDistance" in A:
             info["distance"] = A["sumDistance"]["withUnit"]
 
-        print("Garmin Connect activity: [{id}]{name}\n"
-              "\t{timestamp}, {duration}, {distance}"
-              .format(**info))
+        logging.info("Garmin Connect activity: [{id}]{name}\n"
+                     "\t{timestamp}, {duration}, {distance}"
+                     .format(**info))
 
         if args.format == 'gpx':
             data_filename = "{}/activity_{}.gpx".format(args.directory,
@@ -334,19 +340,19 @@ while total_downloaded < total_to_download:
             raise Exception('Unrecognized format.')
 
         if isfile(data_filename):
-            print('\tData file already exists; skipping...')
+            logging.info('\t%s already exists; skipping...', data_filename)
             continue
         # Regardless of unzip setting, don't redownload if the ZIP or FIT file
         # exists.
         if args.format == 'original' and isfile(fit_filename):
-            print('\tFIT data file already exists; skipping...')
+            logging.info('\t%s already exists; skipping...', data_filename)
             continue
 
         # Download the data file from Garmin Connect.
         # If the download fails (e.g., due to timeout), this script will die,
         # but nothing will have been written to disk about this activity,
         # so just running it again should pick up where it left off.
-        print('\tDownloading file...')
+        logging.info('\tDownloading file...')
 
         try:
             data = http_req(download_url)
@@ -363,16 +369,16 @@ while total_downloaded < total_to_download:
                 # a bit much. Use the GPX format if you want actual data in
                 # every file, as I believe Garmin provides a GPX file for every
                 # activity.
-                print("Writing empty file since Garmin did not"
-                      " generate a TCX file for this activity...")
+                logging.info("Writing empty file since Garmin did not"
+                             " generate a TCX file for this activity...")
                 data = ''
 
             elif e.code == 404 and args.format == 'original':
                 # For manual activities (i.e., entered in online without a file
                 # upload), there is no original file.
                 # Write an empty file to prevent redownloading it.
-                print("Writing empty file since there"
-                      " was no original activity data...")
+                logging.info("Writing empty file since there"
+                             " was no original activity data...")
                 data = ''
             else:
                 raise Exception(
@@ -470,27 +476,27 @@ while total_downloaded < total_to_download:
             gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
 
             if gpx_data_exists:
-                print('Done. GPX data saved.')
+                logging.info('Done. GPX data saved.')
             else:
-                print('Done. No track points found.')
+                logging.info('Done. No track points found.')
         elif args.format == 'original':
             # Even manual upload of a GPX file is zipped, but we'll validate
             # the extension.
             if args.unzip and data_filename[-3:].lower() == 'zip':
-                print("Unzipping and removing original files...")
+                logging.info("Unzipping and removing original files...")
                 zip_file = open(data_filename, 'rb')
                 z = zipfile.ZipFile(zip_file)
                 for name in z.namelist():
                     z.extract(name, args.directory)
                 zip_file.close()
                 remove(data_filename)
-            print('Done.')
+            logging.info('Done.')
         else:
             # TODO: Consider validating other formats.
-            print('Done.')
+            logging.info('Done.')
     total_downloaded += num_to_download
 # End while loop for multiple chunks.
 
 csv_file.close()
 
-print('Done!')
+logging.info('Done!')
