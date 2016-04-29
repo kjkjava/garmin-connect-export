@@ -28,7 +28,7 @@ import zipfile
 
 import logging
 
-logging.basicConfig(filename='example.log',
+logging.basicConfig(filename='import.log',
                     format='%(levelname)s:%(message)s',
                     level=logging.DEBUG)
 
