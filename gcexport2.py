@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from getpass import getpass
-from sys import argv
+import sys
 import os
 from xml.dom.minidom import parseString
 
@@ -13,23 +13,24 @@ import zipfile
 
 import logging
 
-logging.basicConfig(filename='import.log',
-                    format='%(levelname)s:%(message)s',
-                    level=logging.DEBUG)
+logging.basicConfig(  # filename='import.log',
+    format='%(levelname)s:%(message)s',
+    level=logging.DEBUG)
 
 
+py3 = sys.version_info > (3,)  # is this python 3?
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
 
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--username',
+parser.add_argument("--username",
                     help=("your Garmin Connect username "
                           "(otherwise, you will be prompted)"),
                     nargs='?')
 
-parser.add_argument('--password',
+parser.add_argument("--password",
                     help=("your Garmin Connect password "
                           "(otherwise, you will be prompted)"),
                     nargs='?')
@@ -62,9 +63,12 @@ logging.info('Welcome to Garmin Connect Exporter!')
 if os.path.isdir(args.directory):
     logging.info("Warning: Output directory already exists."
                  " Will skip already-downloaded files and append to the CSV file.")
+if args.username:
+    username = args.username
+else:
+    username = input('Username: ') if py3 else raw_input('Username: ')
 
-# username = args.username if args.username else raw_input('Username: ')
-# password = args.password if args.password else getpass()
+password = args.password if args.password else getpass()
 
 # Maximum number of activities you can request at once.  Set and enforced
 # by Garmin.
@@ -101,7 +105,6 @@ url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
 
 
-
 def logged_in_session(username, password):
     # Create a session that will persist thorughout this script
     sesh = requests.Session()
@@ -113,7 +116,6 @@ def logged_in_session(username, password):
     # Initially, we need to get a valid session cookie,
     # so we pull the login page.
     r1 = sesh.get(url_gc_login)
-
 
     # Now we'll actually login, using
     # fields that are passed in a typical Garmin login.
@@ -128,15 +130,14 @@ def logged_in_session(username, password):
 
     r2 = sesh.post(url_gc_login, data=post_data)
 
-
     if "CASTGC" in r2.cookies:
         # Construct login ticket from the  cookie with "CASTCG" key
         login_ticket = "ST-0" + r2.cookies["CASTGC"][4:]
 
     else:
         raise Exception(
-        "Did not get a ticket cookie. Cannot log in."
-        " Did you enter the correct username and password?"
+            "Did not get a ticket cookie. Cannot log in."
+            " Did you enter the correct username and password?"
         )
 
     r3 = sesh.post(url_gc_post_auth, params={"ticket": login_ticket})
@@ -145,7 +146,7 @@ def logged_in_session(username, password):
 
 
 # We should be logged in now.
-sesh = logged_in_session()
+sesh = logged_in_session(username, password)
 
 
 if not os.path.isdir(args.directory):
@@ -153,7 +154,7 @@ if not os.path.isdir(args.directory):
 
 csv_filename = args.directory + '/activities.csv'
 
-csv_existed = isfile(csv_filename)
+csv_existed = os.path.isfile(csv_filename)
 
 csv_file = open(csv_filename, 'a')
 
@@ -262,7 +263,7 @@ while total_downloaded < total_to_download:
         if "sumDistance" in A:
             info["distance"] = A["sumDistance"]["withUnit"]
 
-        logging.info("Garmin Connect activity: [{id}]{name}\n"
+        logging.info("Garmin Connect activity: [{id}] {name}\n"
                      "\t{timestamp}, {duration}, {distance}"
                      .format(**info))
 
@@ -293,20 +294,21 @@ while total_downloaded < total_to_download:
         else:
             raise Exception('Unrecognized format.')
 
-        if isfile(data_filename):
-            logging.info('\t%s already exists; skipping...', data_filename)
+        if os.path.isfile(data_filename):
+            logging.info('%s already exists; skipping...', data_filename)
             continue
+
         # Regardless of unzip setting, don't redownload if the ZIP or FIT file
         # exists.
-        if args.format == 'original' and isfile(fit_filename):
-            logging.info('\t%s already exists; skipping...', data_filename)
+        if args.format == 'original' and os.path.isfile(fit_filename):
+            logging.info('%s already exists; skipping...', data_filename)
             continue
 
         # Download the data file from Garmin Connect.
         # If the download fails (e.g., due to timeout), this script will die,
         # but nothing will have been written to disk about this activity,
         # so just running it again should pick up where it left off.
-        logging.info('\tDownloading file...')
+        logging.info('Downloading file...')
 
         try:
             data = sesh.get(download_url).content
@@ -342,7 +344,10 @@ while total_downloaded < total_to_download:
                 )
 
         save_file = open(data_filename, file_mode)
-        save_file.write(data)
+        if py3:
+            data = save_file.write(str(data))
+        else:
+            save_file.write(data)
         save_file.close()
 
         # Write stats to CSV.
@@ -419,7 +424,10 @@ while total_downloaded < total_to_download:
         csv_record += field_format('lossElevation', 'value')
         csv_record += '\n'
 
-        csv_file.write(csv_record.encode('utf8'))
+        if py3:
+            csv_file.write(csv_record)
+        else:
+            csv_file.write(csv_record.encode('utf8'))
 
         if args.format == 'gpx':
             # Validate GPX data. If we have an activity without GPS data (e.g.,
@@ -455,4 +463,3 @@ while total_downloaded < total_to_download:
 csv_file.close()
 
 logging.info('Done!')
-
