@@ -307,9 +307,10 @@ with open(csv_fullpath, 'a') as csv_file:
                 continue
 
             # Download the data file from Garmin Connect.
-            # If the download fails (e.g., due to timeout), this script will die,
-            # but nothing will have been written to disk about this activity,
-            # so just running it again should pick up where it left off.
+            # If the download fails (e.g., due to timeout), this script will
+            # die, but nothing will have been written to disk about this
+            # activity, so just running it again should pick up where it left
+            # off.
             logging.info('Downloading activity...')
 
             try:
@@ -376,8 +377,8 @@ with open(csv_fullpath, 'a') as csv_file:
                 else:
                     logging.info('Done. No track points found.')
             elif args.format == 'original':
-                # Even manual upload of a GPX file is zipped, but we'll validate
-                # the extension.
+                # Even manual upload of a GPX file is zipped, but we'll
+                # validate the extension.
                 if args.unzip and file_path[-3:].lower() == 'zip':
                     logging.info("Unzipping and removing original files...")
                     zip_file = open(file_path, 'rb')
@@ -386,91 +387,86 @@ with open(csv_fullpath, 'a') as csv_file:
                         z.extract(name, args.directory)
                     zip_file.close()
                     os.remove(file_path)
-                logging.info('%s Done.', data_filename)
-            else:
-                # TODO: Consider validating other formats.
-                logging.info('%s Done.', data_filename)
-"""
-            # Write stats to CSV.
-            empty_record = '"",'
 
-            csv_record = ''
+            if not empty_file:
+                # Write stats to CSV.
+                empty_record = '"",'
 
-            def field_format(key1, key2=None):
-                if key2:
-                    return (empty_record if key1 not in A
-                            else '"' + A[key1][key2].replace('"', '""') + '",')
-                else:
-                    return (empty_record if key1 not in A
-                            else '"' + A[key1].replace('"', '""') + '",')
+                csv_record = ''
 
-            csv_record += field_format('activityId')
-            csv_record += field_format('activityName', 'value')
-            csv_record += field_format('activityDescription', 'value')
-            csv_record += field_format('beginTimestamp', 'display')
-            csv_record += field_format('beginTimestamp', 'millis')
-            csv_record += field_format('endTimestamp', 'display')
-            csv_record += field_format('endTimestamp', 'millis')
+                def field_format(key1, key2=None):
+                    if key2:
+                        return (empty_record if key1 not in A
+                                else '"' + A[key1][key2].replace('"', '""') +
+                                '",')
+                    else:
+                        return (empty_record if key1 not in A
+                                else '"' + A[key1].replace('"', '""') + '",')
 
-            csv_record += (empty_record if 'device' not in A
-                           else '"' +
-                           A['device']['display'].replace('"', '""') +
-                           ' ' +
-                           A['device']['version'].replace('"', '""') +
-                           '",')
+                csv_record += field_format('activityId')
+                csv_record += field_format('activityName', 'value')
+                csv_record += field_format('activityDescription', 'value')
+                csv_record += field_format('beginTimestamp', 'display')
+                csv_record += field_format('beginTimestamp', 'millis')
+                csv_record += field_format('endTimestamp', 'display')
+                csv_record += field_format('endTimestamp', 'millis')
 
-            csv_record += (empty_record if 'activityType' not in A
-                           else '"' +
-                           A['activityType']['parent']['display']
-                           .replace('"', '""') + '",')
+                csv_record += (empty_record if 'device' not in A
+                               else '"' +
+                               A['device']['display'].replace('"', '""') +
+                               ' ' +
+                               A['device']['version'].replace('"', '""') +
+                               '",')
 
-            csv_record += field_format('activityType', 'display')
-            csv_record += field_format('eventType', 'display')
-            csv_record += field_format('activityTimeZone', 'display')
-            csv_record += field_format('maxElevation', 'withUnit')
-            csv_record += field_format('maxElevation', 'value')
-            csv_record += field_format('beginLatitude', 'value')
-            csv_record += field_format('beginLongitude', 'value')
-            csv_record += field_format('endLatitude', 'value')
-            csv_record += field_format('endLongitude', 'value')
+                csv_record += (empty_record if 'activityType' not in A
+                               else '"' +
+                               A['activityType']['parent']['display']
+                               .replace('"', '""') + '",')
 
-            # The units vary between Minutes per Mile and mph, but withUnit
-            # always displays "Minutes per Mile"
-            csv_record += field_format('weightedMeanMovingSpeed', 'display')
-            csv_record += field_format('weightedMeanMovingSpeed', 'value')
-            csv_record += field_format('maxHeartRate', 'display')
+                csv_record += field_format('activityType', 'display')
+                csv_record += field_format('eventType', 'display')
+                csv_record += field_format('activityTimeZone', 'display')
+                csv_record += field_format('maxElevation', 'withUnit')
+                csv_record += field_format('maxElevation', 'value')
+                csv_record += field_format('beginLatitude', 'value')
+                csv_record += field_format('beginLongitude', 'value')
+                csv_record += field_format('endLatitude', 'value')
+                csv_record += field_format('endLongitude', 'value')
 
-            csv_record += field_format('weightedMeanHeartRate', 'display')
+                # The units vary between Minutes per Mile and mph, but withUnit
+                # always displays "Minutes per Mile"
+                csv_record += field_format('weightedMeanMovingSpeed', 'display')
+                csv_record += field_format('weightedMeanMovingSpeed', 'value')
+                csv_record += field_format('maxHeartRate', 'display')
 
-            # The units vary between Minutes per Mile and mph, but withUnit
-            # always displays "Minutes per Mile"
-            csv_record += field_format('maxSpeed', 'display')
+                csv_record += field_format('weightedMeanHeartRate', 'display')
 
-            csv_record += field_format('sumEnergy', 'display')
-            csv_record += field_format('sumEnergy', 'value')
-            csv_record += field_format('sumElapsedDuration', 'display')
-            csv_record += field_format('sumElapsedDuration', 'value')
-            csv_record += field_format('sumMovingDuration', 'display')
-            csv_record += field_format('sumMovingDuration', 'value')
-            csv_record += field_format('weightedMeanSpeed', 'withUnit')
-            csv_record += field_format('weightedMeanSpeed', 'value')
-            csv_record += field_format('sumDistance', 'withUnit')
-            csv_record += field_format('sumDistance', 'value')
-            csv_record += field_format('minHeartRate', 'display')
-            csv_record += field_format('maxElevation', 'withUnit')
-            csv_record += field_format('maxElevation', 'value')
-            csv_record += field_format('gainElevation', 'withUnit')
-            csv_record += field_format('gainElevation', 'value')
-            csv_record += field_format('lossElevation', 'withUnit')
-            csv_record += field_format('lossElevation', 'value')
-            csv_record += '\n'
+                # The units vary between Minutes per Mile and mph, but withUnit
+                # always displays "Minutes per Mile"
+                csv_record += field_format('maxSpeed', 'display')
 
-            if py3:
+                csv_record += field_format('sumEnergy', 'display')
+                csv_record += field_format('sumEnergy', 'value')
+                csv_record += field_format('sumElapsedDuration', 'display')
+                csv_record += field_format('sumElapsedDuration', 'value')
+                csv_record += field_format('sumMovingDuration', 'display')
+                csv_record += field_format('sumMovingDuration', 'value')
+                csv_record += field_format('weightedMeanSpeed', 'withUnit')
+                csv_record += field_format('weightedMeanSpeed', 'value')
+                csv_record += field_format('sumDistance', 'withUnit')
+                csv_record += field_format('sumDistance', 'value')
+                csv_record += field_format('minHeartRate', 'display')
+                csv_record += field_format('maxElevation', 'withUnit')
+                csv_record += field_format('maxElevation', 'value')
+                csv_record += field_format('gainElevation', 'withUnit')
+                csv_record += field_format('gainElevation', 'value')
+                csv_record += field_format('lossElevation', 'withUnit')
+                csv_record += field_format('lossElevation', 'value')
+                csv_record += '\n'
+
                 csv_file.write(csv_record)
-            else:
-                csv_file.write(csv_record.encode('utf8'))
 
-"""
+            # logging.info('%s Done.', data_filename)
     # End while loop for multiple chunks.
 
 logging.info('Done!')
