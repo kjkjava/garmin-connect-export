@@ -18,7 +18,7 @@ logging.basicConfig(  # filename='import.log',
 
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 
-ACTIVITIES_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
+DEFAULT_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
 CSV_FILENAME = "activities.csv"
 
 py3 = sys.version_info > (3,)  # is this python 3?
@@ -47,7 +47,7 @@ parser.add_argument('-f', '--format', nargs='?',
                           " or 'original' (default: 'gpx')"))
 
 parser.add_argument('-d', '--directory', nargs='?',
-                    default=ACTIVITIES_DIRECTORY,
+                    default=DEFAULT_DIRECTORY,
                     help=("the directory to export to"
                           " (default: './YYYY-MM-DD_garmin_connect_export')"))
 
@@ -272,25 +272,22 @@ with open(csv_fullpath, 'a') as csv_file:
                          .format(**info))
 
             if args.format == 'gpx':
-                data_filename = "{}/activity_{}.gpx".format(args.directory,
-                                                            info["id"])
+                data_filename = "activity_{}.gpx".format(info["id"])
                 download_url = "{}{}?full=true".format(url_gc_gpx_activity,
                                                        info["id"])
                 file_mode = 'w'
 
             elif args.format == 'tcx':
-                data_filename = "{}/activity_{}.tcx".format(args.directory,
-                                                            info["id"])
+                data_filename = "activity_{}.tcx".format(info["id"])
 
                 download_url = "{}{}?full=true".format(url_gc_tcx_activity,
                                                        info["id"])
                 file_mode = 'w'
 
             elif args.format == 'original':
-                data_filename = "{}/activity_{}.zip".format(args.directory,
-                                                            info["id"])
+                data_filename = "activity_{}.zip".format(info["id"])
 
-                fit_filename = '{}/{}.fit'.format(args.directory, info["id"])
+                fit_filename = '{}.fit'.format(info["id"])
 
                 download_url = "{}{}".format(
                     url_gc_original_activity, info["id"])
@@ -313,10 +310,11 @@ with open(csv_fullpath, 'a') as csv_file:
             # If the download fails (e.g., due to timeout), this script will die,
             # but nothing will have been written to disk about this activity,
             # so just running it again should pick up where it left off.
-            logging.info('Downloading contents of %s...', data_filename)
+            logging.info('Downloading activity...')
 
             try:
-                data = sesh.get(download_url)
+                empty_file = False
+                file_response = sesh.get(download_url)
 
             except requests.HTTPError as e:
 
@@ -333,7 +331,7 @@ with open(csv_fullpath, 'a') as csv_file:
                     # Garmin provides a GPX file for every activity.
                     logging.info("Writing empty file since Garmin did not"
                                  " generate a TCX file for this activity...")
-                    data = ''
+                    empty_file = True
 
                 elif e.code == 404 and args.format == 'original':
                     # For manual activities (i.e., entered in online without a
@@ -341,22 +339,58 @@ with open(csv_fullpath, 'a') as csv_file:
                     # Write an empty file to prevent redownloading it.
                     logging.info("Writing empty file since there"
                                  " was no original activity data...")
-                    data = ''
+                    empty_file = True
                 else:
                     raise Exception(
                         'Failed. Got an unexpected HTTP error ({}).'
                         .format(str(e.code))
                     )
 
-            with open(data_filename, file_mode) as save_file:
-                if "b" in file_mode:
-                    # write binary data (i.e. zip file) file_mode is "wb"
-                    save_file.write(data.content)
-                else:
-                    # write encoded text file (most likely utf8)
-                    #  encoding is auto-detected by requests
-                    save_file.write(data.text)
+            if empty_file:
+                data = ""
+            elif "b" in file_mode:
+                # if response contains binary data, i.e. file_mode is "wb"
+                data = file_response.content
+            else:
+                # otherwise data is (auto-detected, most likely utf8)
+                # encoded text
+                data = file_response.text
 
+            file_path = args.directory + "/" + data_filename
+            with open(file_path, file_mode) as save_file:
+                save_file.write(data)
+
+            total_downloaded += num_to_download
+
+            if args.format == 'gpx':
+                # Validate GPX data. If we have an activity without GPS data
+                # (e.g., running on a treadmill), Garmin Connect still kicks
+                # out a GPX, but there is only activity information,
+                # no GPS data. N.B. You can omit the XML parse
+                # (and the associated log messages) to speed things up.
+                gpx = parseString(data)
+                gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
+
+                if gpx_data_exists:
+                    logging.info('Done. GPX data saved.')
+                else:
+                    logging.info('Done. No track points found.')
+            elif args.format == 'original':
+                # Even manual upload of a GPX file is zipped, but we'll validate
+                # the extension.
+                if args.unzip and file_path[-3:].lower() == 'zip':
+                    logging.info("Unzipping and removing original files...")
+                    zip_file = open(file_path, 'rb')
+                    z = zipfile.ZipFile(zip_file)
+                    for name in z.namelist():
+                        z.extract(name, args.directory)
+                    zip_file.close()
+                    os.remove(file_path)
+                logging.info('%s Done.', data_filename)
+            else:
+                # TODO: Consider validating other formats.
+                logging.info('%s Done.', data_filename)
+"""
             # Write stats to CSV.
             empty_record = '"",'
 
@@ -436,36 +470,7 @@ with open(csv_fullpath, 'a') as csv_file:
             else:
                 csv_file.write(csv_record.encode('utf8'))
 
-            if args.format == 'gpx':
-                # Validate GPX data. If we have an activity without GPS data
-                # (e.g., running on a treadmill), Garmin Connect still kicks
-                # out a GPX, but there is only activity information,
-                # no GPS data. N.B. You can omit the XML parse
-                # (and the associated log messages) to speed things up.
-                gpx = parseString(data)
-                gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
-
-                if gpx_data_exists:
-                    logging.info('Done. GPX data saved.')
-                else:
-                    logging.info('Done. No track points found.')
-            elif args.format == 'original':
-                # Even manual upload of a GPX file is zipped, but we'll validate
-                # the extension.
-                if args.unzip and data_filename[-3:].lower() == 'zip':
-                    logging.info("Unzipping and removing original files...")
-                    zip_file = open(data_filename, 'rb')
-                    z = zipfile.ZipFile(zip_file)
-                    for name in z.namelist():
-                        z.extract(name, args.directory)
-                    zip_file.close()
-                    os.remove(data_filename)
-                logging.info('Done.')
-            else:
-                # TODO: Consider validating other formats.
-                logging.info('Done.')
-        total_downloaded += num_to_download
-
+"""
     # End while loop for multiple chunks.
 
 logging.info('Done!')
