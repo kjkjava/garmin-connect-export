@@ -16,7 +16,7 @@ import logging
 
 logging.basicConfig(  # filename='import.log',
     format='%(levelname)s:%(message)s',
-    level=logging.DEBUG)  # use level=logging.INFO for less verbosity
+    level=logging.INFO)  # use level=logging.INFO for less verbosity
 
 
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
@@ -274,32 +274,37 @@ with open(csv_fullpath, 'ab') as csv_file:
                          "\t{timestamp}, {duration}, {distance}"
                          .format(**info))
 
-            if args.format == 'gpx':
+            if args.format == "gpx":
                 data_filename = "activity_{}.gpx".format(info["id"])
-                download_url = "{}{}?full=true".format(url_gc_gpx_activity,
-                                                       info["id"])
+                download_url = ("{}{}?full=true"
+                                .format(url_gc_gpx_activity, info["id"]))
                 file_mode = 'w'
 
-            elif args.format == 'tcx':
+            elif args.format == "tcx":
                 data_filename = "activity_{}.tcx".format(info["id"])
 
-                download_url = "{}{}?full=true".format(url_gc_tcx_activity,
-                                                       info["id"])
+                download_url = ("{}{}?full=true"
+                                .format(url_gc_tcx_activity, info["id"]))
                 file_mode = 'w'
 
-            elif args.format == 'original':
+            elif args.format == "original":
                 data_filename = "activity_{}.zip".format(info["id"])
 
-                fit_filename = '{}.fit'.format(info["id"])
+                fit_filename = info["id"] + ".fit"
 
-                download_url = "{}{}".format(
-                    url_gc_original_activity, info["id"])
+                download_url = url_gc_original_activity + info["id"]
                 file_mode = 'wb'
 
             else:
                 raise Exception('Unrecognized format.')
 
-            if os.path.isfile(data_filename):
+            # file_path is the full path of the activity file to write
+            file_path = args.directory + "/" + data_filename
+
+            # Increase the count now, since we want to count skipped files.
+            total_downloaded += 1
+
+            if os.path.isfile(file_path):
                 logging.info('%s already exists; skipping...', data_filename)
                 continue
 
@@ -366,12 +371,8 @@ with open(csv_fullpath, 'ab') as csv_file:
                     #  many non-english characters.
                     data = data.encode(file_response.encoding)
 
-            file_path = args.directory + "/" + data_filename
-
             with open(file_path, file_mode) as save_file:
                 save_file.write(data)
-
-            total_downloaded += 1
 
             if args.format == 'gpx':
                 # Validate GPX data. If we have an activity without GPS data
