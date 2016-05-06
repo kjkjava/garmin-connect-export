@@ -1,6 +1,9 @@
 #!/usr/bin/python
+# -*- coding: utf-8
 
-from __future__ import unicode_literals  # for Python 2 and 3 compatibility
+from __future__ import unicode_literals
+
+
 from datetime import datetime
 from getpass import getpass
 import sys
@@ -13,7 +16,7 @@ import logging
 
 logging.basicConfig(  # filename='import.log',
     format='%(levelname)s:%(message)s',
-    level=logging.DEBUG)
+    level=logging.DEBUG)  # use level=logging.INFO for less verbosity
 
 
 CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
@@ -21,8 +24,7 @@ CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 DEFAULT_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
 CSV_FILENAME = "activities.csv"
 
-py3 = sys.version_info > (3,)  # is this python 3?
-
+py2 = sys.version_info[0] < 3  # is this python 2?
 
 parser = argparse.ArgumentParser()
 
@@ -68,7 +70,7 @@ if os.path.isdir(args.directory):
 if args.username:
     username = args.username
 else:
-    username = input('Username: ') if py3 else raw_input('Username: ')
+    username = raw_input('Username: ') if py2 else input('Username: ')
 
 password = args.password if args.password else getpass()
 
@@ -169,12 +171,13 @@ if args.count == 'all':
     download_all = True
 else:
     total_to_download = int(args.count)
+
 total_downloaded = 0
 
 # This while loop will download data from the server in multiple chunks,
 # if necessary.
 
-with open(csv_fullpath, 'a') as csv_file:
+with open(csv_fullpath, 'ab') as csv_file:
 
     # Write header to CSV file
     if not csv_existed:
@@ -219,7 +222,7 @@ with open(csv_fullpath, 'a') as csv_file:
             "Elevation Gain,"
             "Elevation Gain (Raw),"
             "Elevation Loss,"
-            "Elevation Loss (Raw)\n"
+            "Elevation Loss (Raw)\n".encode("utf-8")
         )
 
     while total_downloaded < total_to_download:
@@ -343,7 +346,7 @@ with open(csv_fullpath, 'a') as csv_file:
                     empty_file = True
                 else:
                     raise Exception(
-                        'Failed. Got an unexpected HTTP error ({}).'
+                        "Failed. Got an unexpected HTTP error ({})."
                         .format(str(e.code))
                     )
 
@@ -353,15 +356,22 @@ with open(csv_fullpath, 'a') as csv_file:
                 # if response contains binary data, i.e. file_mode is "wb"
                 data = file_response.content
             else:
-                # otherwise data is (auto-detected, most likely utf8)
+                # otherwise, data is (auto-detected, most likely utf8)
                 # encoded text
                 data = file_response.text
+                if py2:
+                    # in python 2 we need to explicitly encode the unicode
+                    #  into something that can be written to a file.
+                    # If we don't do this then the write will fail for
+                    #  many non-english characters.
+                    data = data.encode(file_response.encoding)
 
             file_path = args.directory + "/" + data_filename
+
             with open(file_path, file_mode) as save_file:
                 save_file.write(data)
 
-            total_downloaded += num_to_download
+            total_downloaded += 1
 
             if args.format == 'gpx':
                 # Validate GPX data. If we have an activity without GPS data
@@ -385,6 +395,7 @@ with open(csv_fullpath, 'a') as csv_file:
                     z = zipfile.ZipFile(zip_file)
                     for name in z.namelist():
                         z.extract(name, args.directory)
+
                     zip_file.close()
                     os.remove(file_path)
 
@@ -464,7 +475,7 @@ with open(csv_fullpath, 'a') as csv_file:
                 csv_record += field_format('lossElevation', 'value')
                 csv_record += '\n'
 
-                csv_file.write(csv_record)
-    # End while loop for multiple chunks.
+                csv_file.write(csv_record.encode("utf-8"))
+        # End while loop for multiple chunks.
     logging.info("Chunk done!")
 logging.info('Done!')
