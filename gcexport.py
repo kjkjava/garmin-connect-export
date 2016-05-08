@@ -14,12 +14,13 @@ import argparse
 import zipfile
 import logging
 
-logging.basicConfig(  # filename='import.log',
+
+CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
+
+logging.basicConfig(  # filename="import_{}.log".format(CURRENT_DATE),
     format='%(levelname)s:%(message)s',
     level=logging.INFO)  # use level=logging.INFO for less verbosity
 
-
-CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 
 DEFAULT_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
 CSV_FILENAME = "activities.csv"
@@ -380,6 +381,7 @@ with open(csv_fullpath, 'ab') as csv_file:
                 # out a GPX, but there is only activity information,
                 # no GPS data. N.B. You can omit the XML parse
                 # (and the associated log messages) to speed things up.
+
                 gpx = parseString(data)
                 gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
 
@@ -387,10 +389,13 @@ with open(csv_fullpath, 'ab') as csv_file:
                     logging.info('Done. GPX data saved.')
                 else:
                     logging.info('Done. No track points found.')
+
             elif args.format == 'original':
                 # Even manual upload of a GPX file is zipped, but we'll
                 # validate the extension.
-                if args.unzip and file_path[-3:].lower() == 'zip':
+                if (args.unzip and
+                        file_path[-3:].lower() == 'zip' and
+                        os.stat(file_path).st_size > 0):
                     logging.info("Unzipping and removing original files...")
                     zip_file = open(file_path, 'rb')
                     z = zipfile.ZipFile(zip_file)
