@@ -19,7 +19,7 @@ CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 
 logging.basicConfig(  # filename="import_{}.log".format(CURRENT_DATE),
     format='%(levelname)s:%(message)s',
-    level=logging.INFO)  # use level=logging.INFO for less verbosity
+    level=logging.DEBUG)  # use level=logging.INFO for less verbosity
 
 
 DEFAULT_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
@@ -381,9 +381,14 @@ with open(csv_fullpath, 'ab') as csv_file:
                 # out a GPX, but there is only activity information,
                 # no GPS data. N.B. You can omit the XML parse
                 # (and the associated log messages) to speed things up.
-
-                gpx = parseString(data)
-                gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
+                try:
+                    # Sometimes trying to parse the gpx file or find a trkpt
+                    #  tag raises an exception.  We handle this here so it won't
+                    #  stop the script.
+                    gpx = parseString(data)
+                    gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
+                except:
+                    gpx_data_exists = False
 
                 if gpx_data_exists:
                     logging.info('Done. GPX data saved.')
