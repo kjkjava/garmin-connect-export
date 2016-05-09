@@ -63,17 +63,20 @@ args = parser.parse_args()
 
 logging.info('Welcome to Garmin Connect Exporter!')
 
-# Create directory for data files.
-if os.path.isdir(args.directory):
-    logging.info("Warning: Output directory already exists."
-                 " Will skip already-downloaded files and append to the"
-                 " CSV file.")
+
 if args.username:
     username = args.username
 else:
     username = raw_input('Username: ') if py2 else input('Username: ')
 
 password = args.password if args.password else getpass()
+
+
+# Create directory for data files.
+if os.path.isdir(args.directory):
+    logging.info("Warning: Output directory already exists."
+                 " Will skip already-downloaded files and append to the"
+                 " CSV file.")
 
 # Maximum number of activities you can request at once.  Set and enforced
 # by Garmin.
