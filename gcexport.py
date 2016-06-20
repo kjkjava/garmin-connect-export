@@ -19,7 +19,7 @@ CURRENT_DATE = datetime.now().strftime('%Y-%m-%d')
 
 logging.basicConfig(  # filename="import_{}.log".format(CURRENT_DATE),
     format='%(levelname)s:%(message)s',
-    level=logging.DEBUG)  # use level=logging.INFO for less verbosity
+    level=logging.INFO)  # use level=logging.INFO for less verbosity
 
 
 DEFAULT_DIRECTORY = './' + CURRENT_DATE + '_garmin_connect_export'
