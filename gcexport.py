@@ -91,9 +91,9 @@ limit_maximum = 100
 url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
-url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
-url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
-url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
+url_gc_gpx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/'
+url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
+url_gc_original_activity = 'https://connect.garmin.com/modern/proxy/download-service/files/activity/'
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
@@ -117,6 +117,10 @@ if not login_ticket:
 login_ticket = 'ST-0' + login_ticket[4:]
 
 http_req(url_gc_post_auth + 'ticket=' + login_ticket)
+
+# https://github.com/kjkjava/garmin-connect-export/issues/18#issuecomment-243859319
+http_req("http://connect.garmin.com/modern")
+http_req("https://connect.garmin.com/legacy/session")
 
 # We should be logged in now.
 if not isdir(args.directory):
