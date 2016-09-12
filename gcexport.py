@@ -118,6 +118,10 @@ login_ticket = 'ST-0' + login_ticket[4:]
 
 http_req(url_gc_post_auth + 'ticket=' + login_ticket)
 
+# https://github.com/kjkjava/garmin-connect-export/issues/18#issuecomment-243859319
+http_req("http://connect.garmin.com/modern")
+http_req("https://connect.garmin.com/legacy/session")
+
 # We should be logged in now.
 if not isdir(args.directory):
 	mkdir(args.directory)
