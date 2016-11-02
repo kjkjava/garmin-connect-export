@@ -20,10 +20,10 @@ class GarminHandler( object ):
     # https://connect.garmin.com/proxy/activity-search-service-1.2/
     # https://connect.garmin.com/proxy/activity-service-1.3/
     URL_SEARCH    = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
-    URL_GPX_ACTIVITY = 'http://connect.garmin.com/proxy/activity-service-1.3/gpx/activity/%s?full=true'
-    URL_TCX_ACTIVITY = 'http://connect.garmin.com/proxy/activity-service-1.3/tcx/activity/%s?full=true'
-    URL_ZIP_ACTIVITY = 'http://connect.garmin.com/proxy/download-service/files/activity/%s'
-    URL_CSV_ACTIVITY = 'http://connect.garmin.com/csvExporter/%s.csv'
+    URL_GPX_ACTIVITY = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/%s'
+    URL_TCX_ACTIVITY = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/%s'
+    URL_CSV_ACTIVITY = 'https://connect.garmin.com/modern/proxy/download-service/export/csv/activity/%s'
+    URL_ZIP_ACTIVITY = 'https://connect.garmin.com/modern/proxy/download-service/files/activity/%s'
     JSON_DOWNLOAD_LIMIT = 100 # Maximum number of activities to request at once. 100 is the maximum set and enforced by Garmin.
     #JSON_DOWNLOAD_LIMIT = 10 # but 10 is faster if few activities to retrieve.
 
