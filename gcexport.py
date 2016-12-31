@@ -211,6 +211,8 @@ while total_downloaded < total_to_download:
 		# should pick up where it left off.
 		print '\tDownloading file...',
 
+                print "\tusing url: '" + download_url + "'"
+
 		try:
 			data = http_req(download_url)
 		except urllib2.HTTPError as e:
