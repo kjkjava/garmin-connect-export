@@ -17,6 +17,7 @@ from os.path import isdir
 from os.path import isfile
 from os import mkdir
 from os import remove
+from os import utime
 from xml.dom.minidom import parseString
 
 import urllib2, cookielib, json
@@ -48,6 +49,10 @@ parser.add_argument('-d', '--directory', nargs='?', default=activities_directory
 
 parser.add_argument('-u', '--unzip',
 	help="if downloading ZIP files (format: 'original'), unzip the file and removes the ZIP file",
+	action="store_true")
+
+parser.add_argument('-ot', '--originaltime',
+	help="will set downloaded (and possibly unzipped) file time to the activity start time",
 	action="store_true")
 
 args = parser.parse_args()
@@ -91,9 +96,14 @@ limit_maximum = 100
 url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
-url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
-url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
+#url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
+#url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
+
+## New endpoints
+url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
+url_gc_gpx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/'
+
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
@@ -228,11 +238,15 @@ while total_downloaded < total_to_download:
 				print 'Writing empty file since there was no original activity data...',
 				data = ''
 			else:
-				raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
+				raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + download_url +').')
 
 		save_file = open(data_filename, file_mode)
 		save_file.write(data)
 		save_file.close()
+
+		if args.originaltime:
+			start_time=int(a['activity']['beginTimestamp']['millis']) // 1000
+			utime(data_filename, (start_time,start_time))
 
 		# Write stats to CSV.
 		empty_record = '"",'
@@ -301,7 +315,9 @@ while total_downloaded < total_to_download:
 				zip_file = open(data_filename, 'rb')
 				z = zipfile.ZipFile(zip_file)
 				for name in z.namelist():
-					z.extract(name, args.directory)
+					ef=z.extract(name, args.directory)
+					if args.originaltime:
+						utime(ef, (start_time,start_time))
 				zip_file.close()
 				remove(data_filename)
 			print 'Done.'
