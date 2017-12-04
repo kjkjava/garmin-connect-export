@@ -22,125 +22,157 @@ import urllib2
 from xml.dom.minidom import parseString
 import zipfile
 
+MAX_REQUESTS = 100  # Enforced by Garmin
+VERSION = '1.1.0'
 
-script_version = '1.1.0'
-current_date = datetime.now().strftime('%Y-%m-%d')
-activities_directory = './' + current_date + '_garmin_connect_export'
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument('--version', help="print version and exit", action="store_true")
-parser.add_argument('--username', help="your Garmin Connect username (otherwise, you will be prompted)", nargs='?')
-parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
-
-parser.add_argument('-c', '--count', nargs='?', default="1",
-    help="number of recent activities to download, or 'all' (default: 1)")
-
-parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'original'], default="gpx",
-    help="export format; can be 'gpx', 'tcx', or 'original' (default: 'gpx')")
-
-parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
-    help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
-
-parser.add_argument('-u', '--unzip',
-    help="if downloading ZIP files (format: 'original'), unzip the file and removes the ZIP file",
-    action="store_true")
-
-parser.add_argument('-ot', '--originaltime',
-    help="will set downloaded (and possibly unzipped) file time to the activity start time",
-    action="store_true")
-
-args = parser.parse_args()
-
-if args.version:
-    print argv[0] + ", version " + script_version
-    exit(0)
-
-cookie_jar = cookielib.CookieJar()
-opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
-
-
-# url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers.
-def http_req(url, post=None, headers={}):
-    request = urllib2.Request(url)
-    request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
-    for header_key, header_value in headers.iteritems():
-        request.add_header(header_key, header_value)
-    if post:
-        post = urlencode(post)  # Convert dictionary to POST parameter string.
-    response = opener.open(request, data=post)  # This line may throw a urllib2.HTTPError.
-
-    # N.B. urllib2 will follow any 302 redirects.
-    # Also, the "open" call above may throw a urllib2.HTTPError which is checked for below.
-    if response.getcode() not in [200, 204]:
-        raise Exception('Bad return code (' + str(response.getcode()) + ') for: ' + url)
-
-    return (response.read(), response.getcode())
-
-print 'Welcome to Garmin Connect Exporter!'
-
-# Create directory for data files.
-if isdir(args.directory):
-    print 'Warning: Output directory already exists. Will skip already-downloaded files and append to the CSV file.'
-
-username = args.username if args.username else raw_input('Username: ')
-password = args.password if args.password else getpass()
-
-# Maximum number of activities you can request at once.  Set and enforced by Garmin.
-limit_maximum = 100
-
-# URLs for various services.
-url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
+url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+    'webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
+    'redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+    'redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+    'gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
+    'cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
+    'clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
+    'openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&' + \
+    'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
 url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
 url_gc_gpx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
 
-# Initially, we need to get a valid session cookie, so we pull the login page.
-http_req(url_gc_login)
 
-# Now we'll actually login.
-post_data = {
-    'username': username,
-    'password': password,
-    'embed': 'true',
-    'lt': 'e1s1',
-    '_eventId': 'submit',
-    'displayNameRequired':
-    'false'
-}  # Fields that are passed in a typical Garmin login.
+def parse_args():
+    """Parse and return command line arguments."""
+    current_date = datetime.now().strftime('%Y-%m-%d')
+    activities_directory = './' + current_date + '_garmin_connect_export'
 
-http_req(url_gc_login, post_data)
+    parser = argparse.ArgumentParser()
 
-# Get the key.
-# TODO: Can we do this without iterating?
-login_ticket = None
-for cookie in cookie_jar:
-    if cookie.name == 'CASTGC':
-        login_ticket = cookie.value
-        break
+    parser.add_argument('--version', help="print version and exit", action="store_true")
+    parser.add_argument('--username', help="your Garmin Connect username (otherwise, you will be prompted)", nargs='?')
+    parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
 
-if not login_ticket:
-    raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
+    parser.add_argument('-c', '--count', nargs='?', default="1",
+        help="number of recent activities to download, or 'all' (default: 1)")
 
-# Chop of 'TGT-' off the beginning, prepend 'ST-0'.
-login_ticket = 'ST-0' + login_ticket[4:]
+    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'original'], default="gpx",
+        help="export format; can be 'gpx', 'tcx', or 'original' (default: 'gpx')")
 
-http_req(url_gc_post_auth + 'ticket=' + login_ticket)
+    parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
+        help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
 
-# We should be logged in now.
-if not isdir(args.directory):
-    mkdir(args.directory)
+    parser.add_argument('-u', '--unzip',
+        help="if downloading ZIP files (format: 'original'), unzip the file and removes the ZIP file",
+        action="store_true")
 
-csv_filename = args.directory + '/activities.csv'
-csv_existed = isfile(csv_filename)
+    parser.add_argument('-ot', '--originaltime',
+        help="will set downloaded (and possibly unzipped) file time to the activity start time",
+        action="store_true")
 
-csv_file = open(csv_filename, 'a')
+    args = parser.parse_args()
 
-# Write header to CSV file
-if not csv_existed:
-    csv_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
+    if args.version:
+        print argv[0] + ", version " + VERSION
+        exit(0)
+
+    return args
+
+
+def http_request(url, post=None, headers={}):
+    """Perform an HTTP request."""
+    request = urllib2.Request(url)
+    request.add_header(
+        'User-Agent',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')
+
+    for key in headers:
+        request.add_header(key, headers[key])
+
+    if post:
+        post = urlencode(post)
+
+    response = opener.open(request, data=post)
+
+    response_code = response.getcode()
+    if response_code not in [200, 204]:
+        raise Exception('Bad return code (' + str(response_code) + ') for: ' + url)
+
+    return (response.read(), response_code)
+
+
+def login(username, password):
+    http_request(url_gc_login)  # Get a valid session cookie
+
+    post_data = {
+        'username': username,
+        'password': password,
+        'embed': 'true',
+        'lt': 'e1s1',
+        '_eventId': 'submit',
+        'displayNameRequired':
+        'false'
+    }
+    http_request(url_gc_login, post_data)  # Actual login
+
+    login_ticket = None
+    for cookie in cookie_jar:
+        if cookie.name == 'CASTGC':
+            login_ticket = cookie.value
+            break
+
+    if not login_ticket:
+        raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
+
+    # Chop of 'TGT-' off the beginning, prepend 'ST-0'. (no idea why -JA)
+    login_ticket = 'ST-0' + login_ticket[4:]
+
+    http_request(url_gc_post_auth + 'ticket=' + login_ticket)
+
+
+def create_directory(directory):
+    """Create directory for data files, if one does not already exist."""
+    if isdir(directory):
+        print('Warning: Output directory already exists. Running in append mode.')
+    else:
+        mkdir(directory)
+
+
+def prepare_activities_file(directory):
+    filename = args.directory + '/activities.csv'
+    already_existed = isfile(filename)
+    activities = open(filename, 'a')
+
+    if not already_existed:
+        # Write the CSV header
+        activities.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' +
+            'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' +
+            'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' +
+            'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' +
+            'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' +
+            'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' +
+            'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' +
+            'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' +
+            'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
+
+    return activities
+
+
+if __name__ == '__main__':
+    args = parse_args()
+    cookie_jar = cookielib.CookieJar()
+    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
+
+    print('Welcome to Garmin Connect Exporter!')
+    username = args.username if args.username else raw_input('Username: ')
+    password = args.password if args.password else getpass()
+
+    login(username, password)
+    create_directory(args.directory)
+    prepare_activities_file(args.directory)
+
+
+############################
+# Refactored up to above
 
 download_all = False
 if args.count == 'all':
@@ -163,7 +195,7 @@ while total_downloaded < total_to_download:
 
     search_params = {'start': total_downloaded, 'limit': num_to_download}
     # Query Garmin Connect
-    result, _ = http_req(url_gc_search + urlencode(search_params))
+    result, _ = http_request(url_gc_search + urlencode(search_params))
     json_results = json.loads(result)  # TODO: Catch possible exceptions here.
 
     search = json_results['results']['search']
@@ -223,7 +255,7 @@ while total_downloaded < total_to_download:
         print '\tDownloading file...',
 
         try:
-            data, code = http_req(download_url)
+            data, code = http_request(download_url)
         except urllib2.HTTPError as e:
             # Handle expected (though unfortunate) error codes; die on unexpected ones.
             if e.code == 500 and args.format == 'tcx':
