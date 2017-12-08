@@ -137,14 +137,14 @@ def create_directory(directory):
         mkdir(directory)
 
 
-def prepare_activities_file(directory):
+def prepare_summary_file(directory):
     filename = args.directory + '/activities.csv'
     already_existed = isfile(filename)
-    activities = open(filename, 'a')
+    summary_file = open(filename, 'a')
 
     if not already_existed:
         # Write the CSV header
-        activities.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' +
+        summary_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' +
             'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' +
             'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' +
             'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' +
@@ -154,7 +154,30 @@ def prepare_activities_file(directory):
             'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' +
             'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
 
-    return activities
+    return summary_file
+
+
+def get_activities_list(start, limit=100):
+    """Get list of activities, starting on `start` and including up to `limit` items."""
+    response, _ = http_request(url_gc_search + urlencode({'start': start, 'limit': limit}))
+
+    return json.loads(response)
+
+
+def print_activity_summary(a):
+    if 'sumElapsedDuration' in a:
+        duration = a['sumElapsedDuration']['display']
+    else:
+        duration = '??:??:??,'
+
+    if 'sumDistance' in a:
+        distance = a['sumDistance']['withUnit']
+    else:
+        distance = '0.00 Kms'
+
+    print('Activity: [' + a['activityId'] + ']')
+    print(a['activityName']['value'])
+    print('\t' + a['beginTimestamp']['display'] + ', ' + duration + ', ' + distance)
 
 
 if __name__ == '__main__':
@@ -168,62 +191,39 @@ if __name__ == '__main__':
 
     login(username, password)
     create_directory(args.directory)
-    prepare_activities_file(args.directory)
+    prepare_summary_file(args.directory)
+
+    if args.count == 'all':
+        requested_all = True
+        requested = None
+    else:
+        requested_all = False
+        requested = int(args.count)
+    processed = 0
+    existing = 0
+    done = False
+
+    while not done:
+        activities = get_activities_list(processed)
+        existing = int(activities['results']['search']['totalFound'])
+        if requested_all and not requested:
+            requested = existing
+
+        for act in activities['results']['activities']:
+            print_activity_summary(act['activity'])
+
+            processed += 1
+            done = processed >= existing
+            if done:
+                break
 
 
 ############################
 # Refactored up to above
 
-download_all = False
-if args.count == 'all':
-    # If the user wants to download all activities, first download one,
-    # then the result of that request will tell us how many are available
-    # so we will modify the variables then.
-    total_to_download = 1
-    download_all = True
-else:
-    total_to_download = int(args.count)
-total_downloaded = 0
-
-# This while loop will download data from the server in multiple chunks, if necessary.
 while total_downloaded < total_to_download:
-    # Maximum of 100... 400 return status if over 100.  So download 100 or whatever remains if less than 100.
-    if total_to_download - total_downloaded > 100:
-        num_to_download = 100
-    else:
-        num_to_download = total_to_download - total_downloaded
-
-    search_params = {'start': total_downloaded, 'limit': num_to_download}
-    # Query Garmin Connect
-    result, _ = http_request(url_gc_search + urlencode(search_params))
-    json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-
-    search = json_results['results']['search']
-
-    if download_all:
-        # Modify total_to_download based on how many activities the server reports.
-        total_to_download = int(search['totalFound'])
-        # Do it only once.
-        download_all = False
-
-    # Pull out just the list of activities.
-    activities = json_results['results']['activities']
-
     # Process each activity.
     for a in activities:
-        # Display which entry we're working on.
-        print 'Garmin Connect activity: [' + a['activity']['activityId'] + ']',
-        print a['activity']['activityName']['value']
-        print '\t' + a['activity']['beginTimestamp']['display'] + ',',
-        if 'sumElapsedDuration' in a['activity']:
-            print a['activity']['sumElapsedDuration']['display'] + ',',
-        else:
-            print '??:??:??,',
-        if 'sumDistance' in a['activity']:
-            print a['activity']['sumDistance']['withUnit']
-        else:
-            print '0.00 Miles'
-
         if args.format == 'gpx':
             data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.gpx'
             download_url = url_gc_gpx_activity + a['activity']['activityId'] + '?full=true'
