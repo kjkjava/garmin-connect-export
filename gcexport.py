@@ -282,6 +282,10 @@ while total_downloaded < total_to_download:
 		csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['value'].replace('"', '""') + '",'
 		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['withUnit'].replace('"', '""') + '",'
 		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['value'].replace('"', '""') + '"'
+
+                # remove any trailing commas - R read.csv doesn't like them.
+                csv_record = csv_record.rstrip(',')
+
 		csv_record += '\n'
 
 		csv_file.write(csv_record.encode('utf8'))
