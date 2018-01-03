@@ -19,4 +19,4 @@ count_activities_csv:
 
 .PHONY: vimdiff
 vimdiff: count_activities_csv
-	vimdiff $(shell find . -name activities.csv) ../garmin_running/activities.csv
+	vimdiff ../garmin_running/activities.csv $(shell find . -name activities.csv)
