@@ -212,6 +212,30 @@ if __name__ == '__main__':
         for act in activities['results']['activities']:
             print_activity_summary(act['activity'])
 
+            data_filename = args.directory + '/activity_' + act['activity']['activityId']
+            if args.format == 'gpx':
+                data_filename += '.gpx'
+                act_url = url_gc_gpx_activity + act['activity']['activityId'] + '?full=true'
+                file_mode = 'w'
+            elif args.format == 'tcx':
+                data_filename += '.tcx'
+                act_url = url_gc_tcx_activity + act['activity']['activityId'] + '?full=true'
+                file_mode = 'w'
+            elif args.format == 'original':
+                data_filename += '.zip'
+                fit_filename = args.directory + '/' + act['activity']['activityId'] + '.fit'
+                act_url = url_gc_gpx_activity + act['activity']['activityId']
+                file_mode = 'wb'
+            else:
+                raise Exception('Unrecognized format')
+
+            if isfile(data_filename):
+                print('\tData file already exists; skipping...')
+                continue
+            if args.format == 'original' and isfile(fit_filename):
+                print('\tFIT data file already exists; skipping...')
+                continue
+
             processed += 1
             done = processed >= existing
             if done:
@@ -224,29 +248,7 @@ if __name__ == '__main__':
 while total_downloaded < total_to_download:
     # Process each activity.
     for a in activities:
-        if args.format == 'gpx':
-            data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.gpx'
-            download_url = url_gc_gpx_activity + a['activity']['activityId'] + '?full=true'
-            file_mode = 'w'
-        elif args.format == 'tcx':
-            data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.tcx'
-            download_url = url_gc_tcx_activity + a['activity']['activityId'] + '?full=true'
-            file_mode = 'w'
-        elif args.format == 'original':
-            data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.zip'
-            fit_filename = args.directory + '/' + a['activity']['activityId'] + '.fit'
-            download_url = url_gc_original_activity + a['activity']['activityId']
-            file_mode = 'wb'
-        else:
-            raise Exception('Unrecognized format.')
-
-        if isfile(data_filename):
-            print '\tData file already exists; skipping...'
-            continue
-        if args.format == 'original' and isfile(fit_filename):
-            # Regardless of unzip setting, don't redownload if the ZIP or FIT file exists.
-            print '\tFIT data file already exists; skipping...'
-            continue
+        # download_url -> act_url
 
         # Download the data file from Garmin Connect.
         # If the download fails (e.g., due to timeout), this script will die, but nothing
