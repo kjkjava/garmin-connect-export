@@ -157,7 +157,7 @@ def prepare_summary_file(directory):
     return summary_file
 
 
-def get_activities_list(start, limit=100):
+def get_activities_list(start, limit=100):  # TODO: I think the pagination here is broken
     """Get list of activities, starting on `start` and including up to `limit` items."""
     response, _ = http_request(url_gc_search + urlencode({'start': start, 'limit': limit}))
 
@@ -180,6 +180,59 @@ def print_activity_summary(a):
     print('\t' + a['beginTimestamp']['display'] + ', ' + duration + ', ' + distance)
 
 
+def process_activity(act, args):
+    print_activity_summary(act['activity'])
+
+    data_filename = args.directory + '/activity_' + act['activity']['activityId']
+    if args.format == 'gpx':
+        data_filename += '.gpx'
+        act_url = url_gc_gpx_activity + act['activity']['activityId'] + '?full=true'
+        file_mode = 'w'
+    elif args.format == 'tcx':
+        data_filename += '.tcx'
+        act_url = url_gc_tcx_activity + act['activity']['activityId'] + '?full=true'
+        file_mode = 'w'
+    elif args.format == 'original':
+        data_filename += '.zip'
+        fit_filename = args.directory + '/' + act['activity']['activityId'] + '.fit'
+        act_url = url_gc_gpx_activity + act['activity']['activityId']
+        file_mode = 'wb'
+    else:
+        raise Exception('Unrecognized format')
+
+    if isfile(data_filename):
+        print('\tData file already exists; skipping...')
+        return
+    if args.format == 'original' and isfile(fit_filename):
+        print('\tFIT data file already exists; skipping...')
+        return
+
+    print('\tDownloading file...')
+    try:
+        data, code = http_request(act_url)
+    except urllib2.HTTPError as e:
+        if e.code == 500 and args.format == 'tcx':
+            # Garmin will give an internal server error (HTTP 500) when downloading TCX files
+            # if the original was a manual GPX upload.
+            print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
+            data = ''
+        elif e.code == 404 and args.format == 'original':
+            # For manual activities (i.e., entered in online without a file upload), there is no original file.
+            # Write an empty file to prevent redownloading it.
+            print('\tWriting empty file since there was no original activity data...')
+            data = ''
+        else:
+            raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
+
+    save_file = open(data_filename, file_mode)
+    save_file.write(data)
+    save_file.close()
+
+    if args.originaltime:
+        start_time = int(act['activity']['beginTimestamp']['millis']) // 1000
+        utime(data_filename, (start_time, start_time))
+
+
 if __name__ == '__main__':
     args = parse_args()
     cookie_jar = cookielib.CookieJar()
@@ -191,7 +244,7 @@ if __name__ == '__main__':
 
     login(username, password)
     create_directory(args.directory)
-    prepare_summary_file(args.directory)
+    summary = prepare_summary_file(args.directory)
 
     if args.count == 'all':
         requested_all = True
@@ -204,42 +257,20 @@ if __name__ == '__main__':
     done = False
 
     while not done:
-        activities = get_activities_list(processed)
+        activities = get_activities_list(processed)  # TODO: I think the pagination here is broken
         existing = int(activities['results']['search']['totalFound'])
         if requested_all and not requested:
             requested = existing
 
         for act in activities['results']['activities']:
-            print_activity_summary(act['activity'])
-
-            data_filename = args.directory + '/activity_' + act['activity']['activityId']
-            if args.format == 'gpx':
-                data_filename += '.gpx'
-                act_url = url_gc_gpx_activity + act['activity']['activityId'] + '?full=true'
-                file_mode = 'w'
-            elif args.format == 'tcx':
-                data_filename += '.tcx'
-                act_url = url_gc_tcx_activity + act['activity']['activityId'] + '?full=true'
-                file_mode = 'w'
-            elif args.format == 'original':
-                data_filename += '.zip'
-                fit_filename = args.directory + '/' + act['activity']['activityId'] + '.fit'
-                act_url = url_gc_gpx_activity + act['activity']['activityId']
-                file_mode = 'wb'
-            else:
-                raise Exception('Unrecognized format')
-
-            if isfile(data_filename):
-                print('\tData file already exists; skipping...')
-                continue
-            if args.format == 'original' and isfile(fit_filename):
-                print('\tFIT data file already exists; skipping...')
-                continue
-
+            process_activity(act, args)
             processed += 1
             done = processed >= existing
             if done:
                 break
+
+    summary.close()
+    print('Done!')
 
 
 ############################
@@ -248,44 +279,6 @@ if __name__ == '__main__':
 while total_downloaded < total_to_download:
     # Process each activity.
     for a in activities:
-        # download_url -> act_url
-
-        # Download the data file from Garmin Connect.
-        # If the download fails (e.g., due to timeout), this script will die, but nothing
-        # will have been written to disk about this activity, so just running it again
-        # should pick up where it left off.
-        print '\tDownloading file...',
-
-        try:
-            data, code = http_request(download_url)
-        except urllib2.HTTPError as e:
-            # Handle expected (though unfortunate) error codes; die on unexpected ones.
-            if e.code == 500 and args.format == 'tcx':
-                # Garmin will give an internal server error (HTTP 500) when downloading TCX files
-                # if the original was a manual GPX upload.
-                # Writing an empty file prevents this file from being redownloaded,
-                # similar to the way GPX files are saved even when there are no tracks.
-                # One could be generated here, but that's a bit much.
-                # Use the GPX format if you want actual data in every file,
-                # as I believe Garmin provides a GPX file for every activity.
-                print 'Writing empty file since Garmin did not generate a TCX file for this activity...',
-                data = ''
-            elif e.code == 404 and args.format == 'original':
-                # For manual activities (i.e., entered in online without a file upload), there is no original file.
-                # Write an empty file to prevent redownloading it.
-                print 'Writing empty file since there was no original activity data...',
-                data = ''
-            else:
-                raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + download_url + ').')
-
-        save_file = open(data_filename, file_mode)
-        save_file.write(data)
-        save_file.close()
-
-        if args.originaltime:
-            start_time = int(a['activity']['beginTimestamp']['millis']) // 1000
-            utime(data_filename, (start_time, start_time))
-
         # Write stats to CSV.
         empty_record = '"",'
 
@@ -364,8 +357,3 @@ while total_downloaded < total_to_download:
             # TODO: Consider validating other formats.
             print 'Done.'
     total_downloaded += num_to_download
-# End while loop for multiple chunks.
-
-csv_file.close()
-
-print 'Done!'
