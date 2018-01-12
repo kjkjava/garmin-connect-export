@@ -9,7 +9,7 @@ Description: Export your fitness data from Garmin Connect. See README.md for mor
 """
 
 import argparse
-import cookielib
+from http import cookiejar
 from datetime import datetime
 from fileinput import filename
 from getpass import getpass
@@ -17,10 +17,9 @@ import json
 from os.path import isdir, isfile
 from os import mkdir, remove, utime
 from sys import argv
-from urllib import urlencode
-import urllib2
-from xml.dom.minidom import parseString
-import zipfile
+from urllib.parse import urlencode
+from urllib.request import HTTPCookieProcessor, build_opener, Request
+from urllib.error import HTTPError
 
 MAX_REQUESTS = 100  # Enforced by Garmin
 VERSION = '1.1.0'
@@ -38,7 +37,8 @@ url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
 url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
 url_gc_gpx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/'
-url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
+
+cookie_jar = cookiejar.CookieJar()
 
 
 def parse_args():
@@ -55,24 +55,20 @@ def parse_args():
     parser.add_argument('-c', '--count', nargs='?', default="1",
         help="number of recent activities to download, or 'all' (default: 1)")
 
-    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'original'], default="gpx",
-        help="export format; can be 'gpx', 'tcx', or 'original' (default: 'gpx')")
+    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx'], default="gpx",
+        help="export format; can be 'gpx' or 'tcx' (default: 'gpx')")
 
     parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
         help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
 
-    parser.add_argument('-u', '--unzip',
-        help="if downloading ZIP files (format: 'original'), unzip the file and removes the ZIP file",
-        action="store_true")
-
     parser.add_argument('-ot', '--originaltime',
-        help="will set downloaded (and possibly unzipped) file time to the activity start time",
+        help="will set downloaded file time to the activity start time",
         action="store_true")
 
     args = parser.parse_args()
 
     if args.version:
-        print argv[0] + ", version " + VERSION
+        print(argv[0] + ", version " + VERSION)
         exit(0)
 
     return args
@@ -80,7 +76,7 @@ def parse_args():
 
 def http_request(url, post=None, headers={}):
     """Perform an HTTP request."""
-    request = urllib2.Request(url)
+    request = Request(url)
     request.add_header(
         'User-Agent',
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')
@@ -89,8 +85,9 @@ def http_request(url, post=None, headers={}):
         request.add_header(key, headers[key])
 
     if post:
-        post = urlencode(post)
+        post = urlencode(post).encode("utf-8")
 
+    opener = build_opener(HTTPCookieProcessor(cookie_jar))
     response = opener.open(request, data=post)
 
     response_code = response.getcode()
@@ -140,24 +137,25 @@ def create_directory(directory):
 def prepare_summary_file(directory):
     filename = args.directory + '/activities.csv'
     already_existed = isfile(filename)
-    summary_file = open(filename, 'a')
+    summary_file = open(filename, 'ab')
 
     if not already_existed:
         # Write the CSV header
-        summary_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' +
-            'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' +
-            'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' +
-            'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' +
-            'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' +
-            'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' +
-            'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' +
-            'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' +
-            'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
+        header = 'Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' + \
+            'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' + \
+            'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
+            'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
+            'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
+            'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' + \
+            'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
+            'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
+            'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
+        summary_file.write(header.encode('utf8'))
 
     return summary_file
 
 
-def get_activities_list(start, limit=100):  # TODO: I think the pagination here is broken
+def get_activities_list(start, limit=MAX_REQUESTS):  # TODO: I think the pagination here is broken
     """Get list of activities, starting on `start` and including up to `limit` items."""
     response, _ = http_request(url_gc_search + urlencode({'start': start, 'limit': limit}))
 
@@ -184,47 +182,33 @@ def process_activity(act, args):
     print_activity_summary(act['activity'])
 
     data_filename = args.directory + '/activity_' + act['activity']['activityId']
+    act_url = act['activity']['activityId'] + '?full=true'
     if args.format == 'gpx':
         data_filename += '.gpx'
-        act_url = url_gc_gpx_activity + act['activity']['activityId'] + '?full=true'
-        file_mode = 'w'
+        act_url = url_gc_gpx_activity + act_url
     elif args.format == 'tcx':
         data_filename += '.tcx'
-        act_url = url_gc_tcx_activity + act['activity']['activityId'] + '?full=true'
-        file_mode = 'w'
-    elif args.format == 'original':
-        data_filename += '.zip'
-        fit_filename = args.directory + '/' + act['activity']['activityId'] + '.fit'
-        act_url = url_gc_gpx_activity + act['activity']['activityId']
-        file_mode = 'wb'
+        act_url = url_gc_tcx_activity + act_url
     else:
         raise Exception('Unrecognized format')
 
     if isfile(data_filename):
         print('\tData file already exists; skipping...')
         return
-    if args.format == 'original' and isfile(fit_filename):
-        print('\tFIT data file already exists; skipping...')
-        return
 
     print('\tDownloading file...')
     try:
         data, code = http_request(act_url)
-    except urllib2.HTTPError as e:
+    except HTTPError as e:
         if e.code == 500 and args.format == 'tcx':
             # Garmin will give an internal server error (HTTP 500) when downloading TCX files
             # if the original was a manual GPX upload.
             print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
             data = ''
-        elif e.code == 404 and args.format == 'original':
-            # For manual activities (i.e., entered in online without a file upload), there is no original file.
-            # Write an empty file to prevent redownloading it.
-            print('\tWriting empty file since there was no original activity data...')
-            data = ''
         else:
             raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
 
-    save_file = open(data_filename, file_mode)
+    save_file = open(data_filename, 'wb')
     save_file.write(data)
     save_file.close()
 
@@ -232,14 +216,60 @@ def process_activity(act, args):
         start_time = int(act['activity']['beginTimestamp']['millis']) // 1000
         utime(data_filename, (start_time, start_time))
 
+    a = act['activity']
+    empty = '"",'
+    csv = ''
+    csv += empty if 'activityId' not in a else '"' + a['activityId'].replace('"', '""') + '",'
+    csv += empty if 'activityName' not in a else '"' + a['activityName']['value'].replace('"', '""') + '",'
+    csv += empty if 'activityDescription' not in a else '"' + a['activityDescription']['value'].replace('"', '""') + '",'
+    csv += empty if 'beginTimestamp' not in a else '"' + a['beginTimestamp']['display'].replace('"', '""') + '",'
+    csv += empty if 'beginTimestamp' not in a else '"' + a['beginTimestamp']['millis'].replace('"', '""') + '",'
+    csv += empty if 'endTimestamp' not in a else '"' + a['endTimestamp']['display'].replace('"', '""') + '",'
+    csv += empty if 'endTimestamp' not in a else '"' + a['endTimestamp']['millis'].replace('"', '""') + '",'
+    csv += empty if 'device' not in a else '"' + a['device']['display'].replace('"', '""') + ' ' + a['device']['version'].replace('"', '""') + '",'
+    csv += empty if 'activityType' not in a else '"' + a['activityType']['parent']['display'].replace('"', '""') + '",'
+    csv += empty if 'activityType' not in a else '"' + a['activityType']['display'].replace('"', '""') + '",'
+    csv += empty if 'eventType' not in a else '"' + a['eventType']['display'].replace('"', '""') + '",'
+    csv += empty if 'activityTimeZone' not in a else '"' + a['activityTimeZone']['display'].replace('"', '""') + '",'
+    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['value'].replace('"', '""') + '",'
+    csv += empty if 'beginLatitude' not in a else '"' + a['beginLatitude']['value'].replace('"', '""') + '",'
+    csv += empty if 'beginLongitude' not in a else '"' + a['beginLongitude']['value'].replace('"', '""') + '",'
+    csv += empty if 'endLatitude' not in a else '"' + a['endLatitude']['value'].replace('"', '""') + '",'
+    csv += empty if 'endLongitude' not in a else '"' + a['endLongitude']['value'].replace('"', '""') + '",'
+    csv += empty if 'weightedMeanMovingSpeed' not in a else '"' + a['weightedMeanMovingSpeed']['display'].replace('"', '""') + '",'
+    csv += empty if 'weightedMeanMovingSpeed' not in a else '"' + a['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
+    csv += empty if 'maxHeartRate' not in a else '"' + a['maxHeartRate']['display'].replace('"', '""') + '",'
+    csv += empty if 'weightedMeanHeartRate' not in a else '"' + a['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
+    csv += empty if 'maxSpeed' not in a else '"' + a['maxSpeed']['display'].replace('"', '""') + '",'
+    csv += empty if 'maxSpeed' not in a else '"' + a['maxSpeed']['value'].replace('"', '""') + '",'
+    csv += empty if 'sumEnergy' not in a else '"' + a['sumEnergy']['display'].replace('"', '""') + '",'
+    csv += empty if 'sumEnergy' not in a else '"' + a['sumEnergy']['value'].replace('"', '""') + '",'
+    csv += empty if 'sumElapsedDuration' not in a else '"' + a['sumElapsedDuration']['display'].replace('"', '""') + '",'
+    csv += empty if 'sumElapsedDuration' not in a else '"' + a['sumElapsedDuration']['value'].replace('"', '""') + '",'
+    csv += empty if 'sumMovingDuration' not in a else '"' + a['sumMovingDuration']['display'].replace('"', '""') + '",'
+    csv += empty if 'sumMovingDuration' not in a else '"' + a['sumMovingDuration']['value'].replace('"', '""') + '",'
+    csv += empty if 'weightedMeanSpeed' not in a else '"' + a['weightedMeanSpeed']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'weightedMeanSpeed' not in a else '"' + a['weightedMeanSpeed']['value'].replace('"', '""') + '",'
+    csv += empty if 'sumDistance' not in a else '"' + a['sumDistance']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'sumDistance' not in a else '"' + a['sumDistance']['value'].replace('"', '""') + '",'
+    csv += empty if 'minHeartRate' not in a else '"' + a['minHeartRate']['display'].replace('"', '""') + '",'
+    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['value'].replace('"', '""') + '",'
+    csv += empty if 'gainElevation' not in a else '"' + a['gainElevation']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'gainElevation' not in a else '"' + a['gainElevation']['value'].replace('"', '""') + '",'
+    csv += empty if 'lossElevation' not in a else '"' + a['lossElevation']['withUnit'].replace('"', '""') + '",'
+    csv += empty if 'lossElevation' not in a else '"' + a['lossElevation']['value'].replace('"', '""') + '"'
+    csv += '\n'
+
+    return csv
+
 
 if __name__ == '__main__':
     args = parse_args()
-    cookie_jar = cookielib.CookieJar()
-    opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
 
     print('Welcome to Garmin Connect Exporter!')
-    username = args.username if args.username else raw_input('Username: ')
+    username = args.username if args.username else input('Username: ')
     password = args.password if args.password else getpass()
 
     login(username, password)
@@ -263,97 +293,12 @@ if __name__ == '__main__':
             requested = existing
 
         for act in activities['results']['activities']:
-            process_activity(act, args)
+            act_csv = process_activity(act, args)
+            summary.write(act_csv.encode('utf8'))
             processed += 1
-            done = processed >= existing
+            done = processed >= requested
             if done:
                 break
 
     summary.close()
     print('Done!')
-
-
-############################
-# Refactored up to above
-
-while total_downloaded < total_to_download:
-    # Process each activity.
-    for a in activities:
-        # Write stats to CSV.
-        empty_record = '"",'
-
-        csv_record = ''
-
-        csv_record += empty_record if 'activityId' not in a['activity'] else '"' + a['activity']['activityId'].replace('"', '""') + '",'
-        csv_record += empty_record if 'activityName' not in a['activity'] else '"' + a['activity']['activityName']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'activityDescription' not in a['activity'] else '"' + a['activity']['activityDescription']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['millis'].replace('"', '""') + '",'
-        csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['millis'].replace('"', '""') + '",'
-        csv_record += empty_record if 'device' not in a['activity'] else '"' + a['activity']['device']['display'].replace('"', '""') + ' ' + a['activity']['device']['version'].replace('"', '""') + '",'
-        csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['parent']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'eventType' not in a['activity'] else '"' + a['activity']['eventType']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'activityTimeZone' not in a['activity'] else '"' + a['activity']['activityTimeZone']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'beginLatitude' not in a['activity'] else '"' + a['activity']['beginLatitude']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'beginLongitude' not in a['activity'] else '"' + a['activity']['beginLongitude']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'endLatitude' not in a['activity'] else '"' + a['activity']['endLatitude']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'endLongitude' not in a['activity'] else '"' + a['activity']['endLongitude']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
-        csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxHeartRate' not in a['activity'] else '"' + a['activity']['maxHeartRate']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'weightedMeanHeartRate' not in a['activity'] else '"' + a['activity']['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
-        csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'minHeartRate' not in a['activity'] else '"' + a['activity']['minHeartRate']['display'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['value'].replace('"', '""') + '",'
-        csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['withUnit'].replace('"', '""') + '",'
-        csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['value'].replace('"', '""') + '"'
-        csv_record += '\n'
-
-        csv_file.write(csv_record.encode('utf8'))
-
-        if args.format == 'gpx' and code != 204:
-            # Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
-            # Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
-            # N.B. You can omit the XML parse (and the associated log messages) to speed things up.
-            gpx = parseString(data)
-            gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
-
-            if gpx_data_exists:
-                print 'Done. GPX data saved.'
-            else:
-                print 'Done. No track points found.'
-        elif args.format == 'original':
-            if args.unzip and data_filename[-3:].lower() == 'zip':
-                # Even manual upload of a GPX file is zipped, but we'll validate the extension.
-                print "Unzipping and removing original files...",
-                zip_file = open(data_filename, 'rb')
-                z = zipfile.ZipFile(zip_file)
-                for name in z.namelist():
-                    ef = z.extract(name, args.directory)
-                    if args.originaltime:
-                        utime(ef, (start_time, start_time))
-                zip_file.close()
-                remove(data_filename)
-            print 'Done.'
-        else:
-            # TODO: Consider validating other formats.
-            print 'Done.'
-    total_downloaded += num_to_download
