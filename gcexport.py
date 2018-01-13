@@ -52,8 +52,8 @@ def parse_args():
     parser.add_argument('--username', help="your Garmin Connect username (otherwise, you will be prompted)", nargs='?')
     parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
 
-    parser.add_argument('-c', '--count', nargs='?', default="1",
-        help="number of recent activities to download, or 'all' (default: 1)")
+    parser.add_argument('-c', '--count', nargs='?', default="all",
+        help="number of recent activities to download, or 'all' (default: 'all')")
 
     parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx'], default="gpx",
         help="export format; can be 'gpx' or 'tcx' (default: 'gpx')")
@@ -155,7 +155,7 @@ def prepare_summary_file(directory):
     return summary_file
 
 
-def get_activities_list(start, limit=MAX_REQUESTS):  # TODO: I think the pagination here is broken
+def get_activities_list(start, limit=MAX_REQUESTS):
     """Get list of activities, starting on `start` and including up to `limit` items."""
     response, _ = http_request(url_gc_search + urlencode({'start': start, 'limit': limit}))
 
@@ -217,49 +217,50 @@ def process_activity(act, args):
         utime(data_filename, (start_time, start_time))
 
     a = act['activity']
-    empty = '"",'
-    csv = ''
-    csv += empty if 'activityId' not in a else '"' + a['activityId'].replace('"', '""') + '",'
-    csv += empty if 'activityName' not in a else '"' + a['activityName']['value'].replace('"', '""') + '",'
-    csv += empty if 'activityDescription' not in a else '"' + a['activityDescription']['value'].replace('"', '""') + '",'
-    csv += empty if 'beginTimestamp' not in a else '"' + a['beginTimestamp']['display'].replace('"', '""') + '",'
-    csv += empty if 'beginTimestamp' not in a else '"' + a['beginTimestamp']['millis'].replace('"', '""') + '",'
-    csv += empty if 'endTimestamp' not in a else '"' + a['endTimestamp']['display'].replace('"', '""') + '",'
-    csv += empty if 'endTimestamp' not in a else '"' + a['endTimestamp']['millis'].replace('"', '""') + '",'
-    csv += empty if 'device' not in a else '"' + a['device']['display'].replace('"', '""') + ' ' + a['device']['version'].replace('"', '""') + '",'
-    csv += empty if 'activityType' not in a else '"' + a['activityType']['parent']['display'].replace('"', '""') + '",'
-    csv += empty if 'activityType' not in a else '"' + a['activityType']['display'].replace('"', '""') + '",'
-    csv += empty if 'eventType' not in a else '"' + a['eventType']['display'].replace('"', '""') + '",'
-    csv += empty if 'activityTimeZone' not in a else '"' + a['activityTimeZone']['display'].replace('"', '""') + '",'
-    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['value'].replace('"', '""') + '",'
-    csv += empty if 'beginLatitude' not in a else '"' + a['beginLatitude']['value'].replace('"', '""') + '",'
-    csv += empty if 'beginLongitude' not in a else '"' + a['beginLongitude']['value'].replace('"', '""') + '",'
-    csv += empty if 'endLatitude' not in a else '"' + a['endLatitude']['value'].replace('"', '""') + '",'
-    csv += empty if 'endLongitude' not in a else '"' + a['endLongitude']['value'].replace('"', '""') + '",'
-    csv += empty if 'weightedMeanMovingSpeed' not in a else '"' + a['weightedMeanMovingSpeed']['display'].replace('"', '""') + '",'
-    csv += empty if 'weightedMeanMovingSpeed' not in a else '"' + a['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
-    csv += empty if 'maxHeartRate' not in a else '"' + a['maxHeartRate']['display'].replace('"', '""') + '",'
-    csv += empty if 'weightedMeanHeartRate' not in a else '"' + a['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
-    csv += empty if 'maxSpeed' not in a else '"' + a['maxSpeed']['display'].replace('"', '""') + '",'
-    csv += empty if 'maxSpeed' not in a else '"' + a['maxSpeed']['value'].replace('"', '""') + '",'
-    csv += empty if 'sumEnergy' not in a else '"' + a['sumEnergy']['display'].replace('"', '""') + '",'
-    csv += empty if 'sumEnergy' not in a else '"' + a['sumEnergy']['value'].replace('"', '""') + '",'
-    csv += empty if 'sumElapsedDuration' not in a else '"' + a['sumElapsedDuration']['display'].replace('"', '""') + '",'
-    csv += empty if 'sumElapsedDuration' not in a else '"' + a['sumElapsedDuration']['value'].replace('"', '""') + '",'
-    csv += empty if 'sumMovingDuration' not in a else '"' + a['sumMovingDuration']['display'].replace('"', '""') + '",'
-    csv += empty if 'sumMovingDuration' not in a else '"' + a['sumMovingDuration']['value'].replace('"', '""') + '",'
-    csv += empty if 'weightedMeanSpeed' not in a else '"' + a['weightedMeanSpeed']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'weightedMeanSpeed' not in a else '"' + a['weightedMeanSpeed']['value'].replace('"', '""') + '",'
-    csv += empty if 'sumDistance' not in a else '"' + a['sumDistance']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'sumDistance' not in a else '"' + a['sumDistance']['value'].replace('"', '""') + '",'
-    csv += empty if 'minHeartRate' not in a else '"' + a['minHeartRate']['display'].replace('"', '""') + '",'
-    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'maxElevation' not in a else '"' + a['maxElevation']['value'].replace('"', '""') + '",'
-    csv += empty if 'gainElevation' not in a else '"' + a['gainElevation']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'gainElevation' not in a else '"' + a['gainElevation']['value'].replace('"', '""') + '",'
-    csv += empty if 'lossElevation' not in a else '"' + a['lossElevation']['withUnit'].replace('"', '""') + '",'
-    csv += empty if 'lossElevation' not in a else '"' + a['lossElevation']['value'].replace('"', '""') + '"'
+    csv = '"' + a.get('activityId', '').replace('"', '""') + '",'
+    csv += '"' + a.get('activityName', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('activityDescription', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('beginTimestamp', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('beginTimestamp', {}).get('millis', '').replace('"', '""') + '",'
+    csv += '"' + a.get('endTimestamp', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('endTimestamp', {}).get('millis', '').replace('"', '""') + '",'
+    if 'device' in a:
+        csv += '"' + a['device']['display'].replace('"', '""') + a['device']['version'].replace('"', '""') + '","'
+    else:
+        csv += '"",'
+    csv += '"' + a.get('activityType', {}).get('parent', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('activityType', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('eventType', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('activityTimeZone', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxElevation', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxElevation', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('beginLatitude', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('beginLongitude', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('endLatitude', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('endLongitude', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanMovingSpeed', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanMovingSpeed', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxHeartRate', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanHeartRate', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxSpeed', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxSpeed', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumEnergy', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumEnergy', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumElapsedDuration', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumElapsedDuration', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumMovingDuration', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumMovingDuration', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanSpeed', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanSpeed', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumDistance', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('sumDistance', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minHeartRate', {}).get('display', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minElevation', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minElevation', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('gainElevation', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('gainElevation', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('lossElevation', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('lossElevation', {}).get('value', '').replace('"', '""') + '"'
     csv += '\n'
 
     return csv
@@ -287,7 +288,7 @@ if __name__ == '__main__':
     done = False
 
     while not done:
-        activities = get_activities_list(processed)  # TODO: I think the pagination here is broken
+        activities = get_activities_list(processed)
         existing = int(activities['results']['search']['totalFound'])
         if requested_all and not requested:
             requested = existing
