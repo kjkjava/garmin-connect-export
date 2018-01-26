@@ -9,17 +9,16 @@ Description: Export your fitness data from Garmin Connect. See README.md for mor
 """
 
 import argparse
-from http import cookiejar
-from datetime import datetime
-from fileinput import filename
-from getpass import getpass
 import json
+from datetime import datetime
+from getpass import getpass
+from http import cookiejar
+from os import mkdir, utime
 from os.path import isdir, isfile
-from os import mkdir, remove, utime
 from sys import argv
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, build_opener, Request
-from urllib.error import HTTPError
 
 MAX_REQUESTS = 100  # Enforced by Garmin
 VERSION = '1.1.0'
