@@ -24,14 +24,14 @@ MAX_REQUESTS = 100  # Enforced by Garmin
 VERSION = '1.1.0'
 
 url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
-    'redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
-    'cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
-    'clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
-    'openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&' + \
-    'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
+               'webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
+               'redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
+               'cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
+               'clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
+               'openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&' + \
+               'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
 url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
@@ -52,17 +52,17 @@ def parse_args():
     parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
 
     parser.add_argument('-c', '--count', nargs='?', default="all",
-        help="number of recent activities to download, or 'all' (default: 'all')")
+                        help="number of recent activities to download, or 'all' (default: 'all')")
 
     parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'none'], default="gpx",
-        help="export format; can be 'gpx' 'tcx' or 'none' (default: 'gpx')")
+                        help="export format; can be 'gpx' 'tcx' or 'none' (default: 'gpx')")
 
     parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
-        help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
+                        help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
 
     parser.add_argument('-ot', '--originaltime',
-        help="will set downloaded file time to the activity start time",
-        action="store_true")
+                        help="will set downloaded file time to the activity start time",
+                        action="store_true")
 
     args = parser.parse_args()
 
@@ -73,8 +73,10 @@ def parse_args():
     return args
 
 
-def http_request(url, post=None, headers={}):
+def http_request(url, post=None, headers=None):
     """Perform an HTTP request."""
+    if headers is None:
+        headers = {}
     request = Request(url)
     request.add_header(
         'User-Agent',
@@ -106,7 +108,7 @@ def login(username, password):
         'lt': 'e1s1',
         '_eventId': 'submit',
         'displayNameRequired':
-        'false'
+            'false'
     }
     http_request(url_gc_login, post_data)  # Actual login
 
@@ -141,14 +143,14 @@ def prepare_summary_file(directory):
     if not already_existed:
         # Write the CSV header
         header = 'Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' + \
-            'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' + \
-            'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
-            'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
-            'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
-            'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' + \
-            'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
-            'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
-            'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
+                 'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' + \
+                 'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
+                 'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
+                 'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
+                 'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' + \
+                 'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
+                 'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
+                 'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
         summary_file.write(header.encode('utf8'))
 
     return summary_file
