@@ -29,7 +29,7 @@ That said, here are the usage details from the `--help` flag:
 ```
 usage: gcexport.py [-h] [--version] [--username [USERNAME]]
                    [--password [PASSWORD]] [-c [COUNT]]
-                   [-f [{gpx,tcx,original}]] [-d [DIRECTORY]] [-u]
+                   [-f [{gpx,tcx,original,none}]] [-d [DIRECTORY]] [-u]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -43,8 +43,8 @@ optional arguments:
   -c [COUNT], --count [COUNT]
                         number of recent activities to download, or 'all'
                         (default: 'all')
-  -f [{gpx,tcx}], --format [{gpx,tcx}]
-                        export format; can be 'gpx' or 'tcx'
+  -f [{gpx,tcx,none}], --format [{gpx,tcx,none}]
+                        export format; can be 'gpx', 'tcx' or 'none'
                         (default: 'gpx')
   -d [DIRECTORY], --directory [DIRECTORY]
                         the directory to export to (default: './YYYY-MM-
