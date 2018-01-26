@@ -24,13 +24,21 @@ MAX_REQUESTS = 100  # Enforced by Garmin
 VERSION = '1.1.0'
 
 url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-               'webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
-               'redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-               'redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-               'gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
-               'cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
-               'clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
-               'openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&' + \
+               'webhost=' \
+               'olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
+               'redirectAfterAccountLoginUrl=' \
+               'https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'redirectAfterAccountCreationUrl=' \
+               'https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'gauthHost=' \
+               'https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
+               'cssUrl=' \
+               'https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
+               'clientId=' \
+               'GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
+               'openCreateAccount=' \
+               'false&usernameShown=' \
+               'false&displayNameShown=false&consumeServiceTicket=false&' + \
                'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
@@ -64,13 +72,13 @@ def parse_args():
                         help="will set downloaded file time to the activity start time",
                         action="store_true")
 
-    args = parser.parse_args()
+    arguments = parser.parse_args()
 
-    if args.version:
+    if arguments.version:
         print(argv[0] + ", version " + VERSION)
         exit(0)
 
-    return args
+    return arguments
 
 
 def http_request(url, post=None, headers=None):
@@ -95,15 +103,15 @@ def http_request(url, post=None, headers=None):
     if response_code not in [200, 204]:
         raise Exception('Bad return code (' + str(response_code) + ') for: ' + url)
 
-    return (response.read(), response_code)
+    return response.read(), response_code
 
 
-def login(username, password):
+def login(usrname, passwd):
     http_request(url_gc_login)  # Get a valid session cookie
 
     post_data = {
-        'username': username,
-        'password': password,
+        'username': usrname,
+        'password': passwd,
         'embed': 'true',
         'lt': 'e1s1',
         '_eventId': 'submit',
@@ -135,7 +143,7 @@ def create_directory(directory):
         mkdir(directory)
 
 
-def prepare_summary_file(directory):
+def prepare_summary_file():
     filename = args.directory + '/activities.csv'
     already_existed = isfile(filename)
     summary_file = open(filename, 'ab')
@@ -147,7 +155,8 @@ def prepare_summary_file(directory):
                  'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
                  'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
                  'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
-                 'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' + \
+                 'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories' \
+                 ',Calories (Raw),' + \
                  'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
                  'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
                  'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
@@ -179,23 +188,23 @@ def print_activity_summary(a):
     print('\t' + a['beginTimestamp']['display'] + ', ' + duration + ', ' + distance)
 
 
-def process_activity(act, args):
-    print_activity_summary(act['activity'])
+def process_activity(read_act, arguments):
+    print_activity_summary(read_act['activity'])
 
-    data_filename = args.directory + '/activity_' + act['activity']['activityId']
-    act_url = act['activity']['activityId'] + '?full=true'
-    if args.format == 'gpx':
+    data_filename = arguments.directory + '/activity_' + read_act['activity']['activityId']
+    act_url = read_act['activity']['activityId'] + '?full=true'
+    if arguments.format == 'gpx':
         data_filename += '.gpx'
         act_url = url_gc_gpx_activity + act_url
-    elif args.format == 'tcx':
+    elif arguments.format == 'tcx':
         data_filename += '.tcx'
         act_url = url_gc_tcx_activity + act_url
-    elif args.format == 'none':
+    elif arguments.format == 'none':
         print('no download')
     else:
         raise Exception('Unrecognized format')
 
-    if args.format != 'none':
+    if arguments.format != 'none':
         if isfile(data_filename):
             print('\tData file already exists; skipping...')
             return
@@ -204,7 +213,7 @@ def process_activity(act, args):
         try:
             data, code = http_request(act_url)
         except HTTPError as e:
-            if e.code == 500 and args.format == 'tcx':
+            if e.code == 500 and arguments.format == 'tcx':
                 # Garmin will give an internal server error (HTTP 500) when downloading TCX files
                 # if the original was a manual GPX upload.
                 print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
@@ -216,11 +225,11 @@ def process_activity(act, args):
         save_file.write(data)
         save_file.close()
 
-    if args.originaltime:
-        start_time = int(act['activity']['beginTimestamp']['millis']) // 1000
+    if arguments.originaltime:
+        start_time = int(read_act['activity']['beginTimestamp']['millis']) // 1000
         utime(data_filename, (start_time, start_time))
 
-    a = act['activity']
+    a = read_act['activity']
     csv = '"' + a.get('activityId', '').replace('"', '""') + '",'
     csv += '"' + a.get('activityName', {}).get('value', '').replace('"', '""') + '",'
     csv += '"' + a.get('activityDescription', {}).get('value', '').replace('"', '""') + '",'
@@ -279,7 +288,7 @@ if __name__ == '__main__':
 
     login(username, password)
     create_directory(args.directory)
-    summary = prepare_summary_file(args.directory)
+    summary = prepare_summary_file()
 
     if args.count == 'all':
         requested_all = True
