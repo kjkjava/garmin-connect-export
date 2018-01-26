@@ -55,8 +55,8 @@ def parse_args():
     parser.add_argument('-c', '--count', nargs='?', default="all",
         help="number of recent activities to download, or 'all' (default: 'all')")
 
-    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx'], default="gpx",
-        help="export format; can be 'gpx' or 'tcx' (default: 'gpx')")
+    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'none'], default="gpx",
+        help="export format; can be 'gpx' 'tcx' or 'none' (default: 'gpx')")
 
     parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
         help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
@@ -189,28 +189,31 @@ def process_activity(act, args):
     elif args.format == 'tcx':
         data_filename += '.tcx'
         act_url = url_gc_tcx_activity + act_url
+    elif args.format == 'none':
+        print('no download')
     else:
         raise Exception('Unrecognized format')
 
-    if isfile(data_filename):
-        print('\tData file already exists; skipping...')
-        return
+    if args.format != 'none':
+        if isfile(data_filename):
+            print('\tData file already exists; skipping...')
+            return
 
-    print('\tDownloading file...')
-    try:
-        data, code = http_request(act_url)
-    except HTTPError as e:
-        if e.code == 500 and args.format == 'tcx':
-            # Garmin will give an internal server error (HTTP 500) when downloading TCX files
-            # if the original was a manual GPX upload.
-            print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
-            data = ''
-        else:
-            raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
+        print('\tDownloading file...')
+        try:
+            data, code = http_request(act_url)
+        except HTTPError as e:
+            if e.code == 500 and args.format == 'tcx':
+                # Garmin will give an internal server error (HTTP 500) when downloading TCX files
+                # if the original was a manual GPX upload.
+                print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
+                data = ''
+            else:
+                raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
 
-    save_file = open(data_filename, 'wb')
-    save_file.write(data)
-    save_file.close()
+        save_file = open(data_filename, 'wb')
+        save_file.write(data)
+        save_file.close()
 
     if args.originaltime:
         start_time = int(act['activity']['beginTimestamp']['millis']) // 1000
