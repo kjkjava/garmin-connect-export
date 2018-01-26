@@ -9,30 +9,37 @@ Description: Export your fitness data from Garmin Connect. See README.md for mor
 """
 
 import argparse
-from http import cookiejar
-from datetime import datetime
-from fileinput import filename
-from getpass import getpass
 import json
+from datetime import datetime
+from getpass import getpass
+from http import cookiejar
+from os import mkdir, utime
 from os.path import isdir, isfile
-from os import mkdir, remove, utime
 from sys import argv
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, build_opener, Request
-from urllib.error import HTTPError
 
 MAX_REQUESTS = 100  # Enforced by Garmin
 VERSION = '1.1.0'
 
 url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
-    'redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
-    'gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
-    'cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
-    'clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
-    'openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&' + \
-    'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
+               'webhost=' \
+               'olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&' + \
+               'redirectAfterAccountLoginUrl=' \
+               'https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'redirectAfterAccountCreationUrl=' \
+               'https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&' + \
+               'gauthHost=' \
+               'https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&' + \
+               'cssUrl=' \
+               'https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&' + \
+               'clientId=' \
+               'GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&' + \
+               'openCreateAccount=' \
+               'false&usernameShown=' \
+               'false&displayNameShown=false&consumeServiceTicket=false&' + \
+               'initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
 url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
 url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
@@ -53,29 +60,31 @@ def parse_args():
     parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
 
     parser.add_argument('-c', '--count', nargs='?', default="all",
-        help="number of recent activities to download, or 'all' (default: 'all')")
+                        help="number of recent activities to download, or 'all' (default: 'all')")
 
-    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx'], default="gpx",
-        help="export format; can be 'gpx' or 'tcx' (default: 'gpx')")
+    parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'none'], default="gpx",
+                        help="export format; can be 'gpx' 'tcx' or 'none' (default: 'gpx')")
 
     parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
-        help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
+                        help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
 
     parser.add_argument('-ot', '--originaltime',
-        help="will set downloaded file time to the activity start time",
-        action="store_true")
+                        help="will set downloaded file time to the activity start time",
+                        action="store_true")
 
-    args = parser.parse_args()
+    arguments = parser.parse_args()
 
-    if args.version:
+    if arguments.version:
         print(argv[0] + ", version " + VERSION)
         exit(0)
 
-    return args
+    return arguments
 
 
-def http_request(url, post=None, headers={}):
+def http_request(url, post=None, headers=None):
     """Perform an HTTP request."""
+    if headers is None:
+        headers = {}
     request = Request(url)
     request.add_header(
         'User-Agent',
@@ -94,20 +103,20 @@ def http_request(url, post=None, headers={}):
     if response_code not in [200, 204]:
         raise Exception('Bad return code (' + str(response_code) + ') for: ' + url)
 
-    return (response.read(), response_code)
+    return response.read(), response_code
 
 
-def login(username, password):
+def login(usrname, passwd):
     http_request(url_gc_login)  # Get a valid session cookie
 
     post_data = {
-        'username': username,
-        'password': password,
+        'username': usrname,
+        'password': passwd,
         'embed': 'true',
         'lt': 'e1s1',
         '_eventId': 'submit',
         'displayNameRequired':
-        'false'
+            'false'
     }
     http_request(url_gc_login, post_data)  # Actual login
 
@@ -134,7 +143,7 @@ def create_directory(directory):
         mkdir(directory)
 
 
-def prepare_summary_file(directory):
+def prepare_summary_file():
     filename = args.directory + '/activities.csv'
     already_existed = isfile(filename)
     summary_file = open(filename, 'ab')
@@ -142,14 +151,15 @@ def prepare_summary_file(directory):
     if not already_existed:
         # Write the CSV header
         header = 'Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),' + \
-            'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' + \
-            'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
-            'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
-            'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
-            'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),' + \
-            'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
-            'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
-            'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
+                 'End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,' + \
+                 'Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),' + \
+                 'Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),' + \
+                 'End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),' + \
+                 'Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories' \
+                 ',Calories (Raw),' + \
+                 'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
+                 'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
+                 'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
         summary_file.write(header.encode('utf8'))
 
     return summary_file
@@ -178,45 +188,48 @@ def print_activity_summary(a):
     print('\t' + a['beginTimestamp']['display'] + ', ' + duration + ', ' + distance)
 
 
-def process_activity(act, args):
-    print_activity_summary(act['activity'])
+def process_activity(read_act, arguments):
+    print_activity_summary(read_act['activity'])
 
-    data_filename = args.directory + '/activity_' + act['activity']['activityId']
-    act_url = act['activity']['activityId'] + '?full=true'
-    if args.format == 'gpx':
+    data_filename = arguments.directory + '/activity_' + read_act['activity']['activityId']
+    act_url = read_act['activity']['activityId'] + '?full=true'
+    if arguments.format == 'gpx':
         data_filename += '.gpx'
         act_url = url_gc_gpx_activity + act_url
-    elif args.format == 'tcx':
+    elif arguments.format == 'tcx':
         data_filename += '.tcx'
         act_url = url_gc_tcx_activity + act_url
+    elif arguments.format == 'none':
+        print('no download')
     else:
         raise Exception('Unrecognized format')
 
-    if isfile(data_filename):
-        print('\tData file already exists; skipping...')
-        return
+    if arguments.format != 'none':
+        if isfile(data_filename):
+            print('\tData file already exists; skipping...')
+            return
 
-    print('\tDownloading file...')
-    try:
-        data, code = http_request(act_url)
-    except HTTPError as e:
-        if e.code == 500 and args.format == 'tcx':
-            # Garmin will give an internal server error (HTTP 500) when downloading TCX files
-            # if the original was a manual GPX upload.
-            print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
-            data = ''
-        else:
-            raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
+        print('\tDownloading file...')
+        try:
+            data, code = http_request(act_url)
+        except HTTPError as e:
+            if e.code == 500 and arguments.format == 'tcx':
+                # Garmin will give an internal server error (HTTP 500) when downloading TCX files
+                # if the original was a manual GPX upload.
+                print('\tWriting empty file since Garmin did not generate a TCX file for this activity...')
+                data = ''
+            else:
+                raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + act_url + ').')
 
-    save_file = open(data_filename, 'wb')
-    save_file.write(data)
-    save_file.close()
+        save_file = open(data_filename, 'wb')
+        save_file.write(data)
+        save_file.close()
 
-    if args.originaltime:
-        start_time = int(act['activity']['beginTimestamp']['millis']) // 1000
+    if arguments.originaltime:
+        start_time = int(read_act['activity']['beginTimestamp']['millis']) // 1000
         utime(data_filename, (start_time, start_time))
 
-    a = act['activity']
+    a = read_act['activity']
     csv = '"' + a.get('activityId', '').replace('"', '""') + '",'
     csv += '"' + a.get('activityName', {}).get('value', '').replace('"', '""') + '",'
     csv += '"' + a.get('activityDescription', {}).get('value', '').replace('"', '""') + '",'
@@ -275,7 +288,7 @@ if __name__ == '__main__':
 
     login(username, password)
     create_directory(args.directory)
-    summary = prepare_summary_file(args.directory)
+    summary = prepare_summary_file()
 
     if args.count == 'all':
         requested_all = True
