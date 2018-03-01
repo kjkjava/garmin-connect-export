@@ -159,7 +159,9 @@ def prepare_summary_file():
                  ',Calories (Raw),' + \
                  'Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),' + \
                  'Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,' + \
-                 'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n'
+                 'Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw),' + \
+                 'Min. Temp,Min. Temp (raw),Max. Temp,Max. Temp (raw),Avg. Temp,Avg. Temp (raw),' + \
+                 'Min. Cad,Min. Cad (raw),Max. Cad,Max. Cad (raw),Avg. Cad,Avg. Cad (raw)\n'
         summary_file.write(header.encode('utf8'))
 
     return summary_file
@@ -273,7 +275,19 @@ def process_activity(read_act, arguments):
     csv += '"' + a.get('gainElevation', {}).get('withUnit', '').replace('"', '""') + '",'
     csv += '"' + a.get('gainElevation', {}).get('value', '').replace('"', '""') + '",'
     csv += '"' + a.get('lossElevation', {}).get('withUnit', '').replace('"', '""') + '",'
-    csv += '"' + a.get('lossElevation', {}).get('value', '').replace('"', '""') + '"'
+    csv += '"' + a.get('lossElevation', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minAirTemperature', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minAirTemperature', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxAirTemperature', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxAirTemperature', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanAirTemperature', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanAirTemperature', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minBikeCadence', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('minBikeCadence', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxBikeCadence', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('maxBikeCadence', {}).get('value', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanBikeCadence', {}).get('withUnit', '').replace('"', '""') + '",'
+    csv += '"' + a.get('weightedMeanBikeCadence', {}).get('value', '').replace('"', '""') + '"'
     csv += '\n'
 
     return csv
