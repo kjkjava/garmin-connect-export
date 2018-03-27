@@ -90,10 +90,11 @@ limit_maximum = 100
 # URLs for various services.
 url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
-url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
+url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
 url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
 url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
+url_gc_modern_activity = 'https://connect.garmin.com/modern/proxy/activity-service/activity/'
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
@@ -152,27 +153,55 @@ while total_downloaded < total_to_download:
 
 	search_params = {'start': total_downloaded, 'limit': num_to_download}
 	# Query Garmin Connect
-	result = http_req(url_gc_search + urlencode(search_params))
+        query_url = url_gc_search + urlencode(search_params)
+        print "### query_url:"
+        print query_url
+        print "###"
+	result = http_req(query_url)
 	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-		
 
-	search = json_results['results']['search']
+	# search = json_results['results']['search']
 
 	if download_all:
 		# Modify total_to_download based on how many activities the server reports.
-		total_to_download = int(search['totalFound'])
+		# total_to_download = int(search['totalFound'])
+		total_to_download = int(json_results['results']['totalFound'])
 		# Do it only once.
 		download_all = False
 
 	# Pull out just the list of activities.
 	activities = json_results['results']['activities']
 
+        print "### json_results:"
+        print json_results
+        print "###"
+
 	# Process each activity.
 	for a in activities:
 		# Display which entry we're working on.
-		print 'Garmin Connect activity: [' + a['activity']['activityId'] + ']',
-		print a['activity']['activityName']['value']
-		print '\t' + a['activity']['beginTimestamp']['display'] + ',',
+
+                # backwards compatibility hack: activityId used to be a string,
+                # now is an int.
+                a['activity']['activityId'] = str(a['activity']['activityId'])
+                activityId = a['activity']['activityId']
+
+		print 'Garmin Connect activity: [' + activityId + ']',
+		print a['activity']['activityName']
+                modern_activity_url = url_gc_modern_activity + activityId
+                print "url: " + modern_activity_url
+
+		activity_filename = args.directory + '/' + activityId + '.json'
+                print "filename: " + activity_filename
+                result = http_req(modern_activity_url)
+                json_results = json.loads(result)
+
+		save_file = open(activity_filename, 'w')
+		save_file.write(str(json_results))
+		save_file.close()
+
+                continue
+
+		# print '\t' + a['activity']['beginTimestamp']['display'] + ',',
 		if 'sumElapsedDuration' in a['activity']:
 			print a['activity']['sumElapsedDuration']['display'] + ',',
 		else:
