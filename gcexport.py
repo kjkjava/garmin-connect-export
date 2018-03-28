@@ -193,76 +193,10 @@ while total_downloaded < total_to_download:
 		activity_filename = args.directory + '/' + activityId + '.json'
                 print "filename: " + activity_filename
                 result = http_req(modern_activity_url)
-                json_results = json.loads(result)
+                results = json.loads(result)
 
 		save_file = open(activity_filename, 'w')
-		save_file.write(str(json_results))
-		save_file.close()
-
-                continue
-
-		# print '\t' + a['activity']['beginTimestamp']['display'] + ',',
-		if 'sumElapsedDuration' in a['activity']:
-			print a['activity']['sumElapsedDuration']['display'] + ',',
-		else:
-			print '??:??:??,',
-		if 'sumDistance' in a['activity']:
-			print a['activity']['sumDistance']['withUnit']
-		else:
-			print '0.00 Miles'
-
-		if args.format == 'gpx':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.gpx'
-			download_url = url_gc_gpx_activity + a['activity']['activityId'] + '?full=true'
-			file_mode = 'w'
-		elif args.format == 'tcx':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.tcx'
-			download_url = url_gc_tcx_activity + a['activity']['activityId'] + '?full=true'
-			file_mode = 'w'
-		elif args.format == 'original':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.zip'
-			fit_filename = args.directory + '/' + a['activity']['activityId'] + '.fit'
-			download_url = url_gc_original_activity + a['activity']['activityId']
-			file_mode = 'wb'
-		else:
-			raise Exception('Unrecognized format.')
-
-		if isfile(data_filename):
-			print '\tData file already exists; skipping...'
-			continue
-		if args.format == 'original' and isfile(fit_filename):  # Regardless of unzip setting, don't redownload if the ZIP or FIT file exists.
-			print '\tFIT data file already exists; skipping...'
-			continue
-
-		# Download the data file from Garmin Connect.
-		# If the download fails (e.g., due to timeout), this script will die, but nothing
-		# will have been written to disk about this activity, so just running it again
-		# should pick up where it left off.
-		print '\tDownloading file...',
-
-                print "\tusing url: '" + download_url + "'"
-
-		try:
-			data = http_req(download_url)
-		except urllib2.HTTPError as e:
-			# Handle expected (though unfortunate) error codes; die on unexpected ones.
-			if e.code == 500 and args.format == 'tcx':
-				# Garmin will give an internal server error (HTTP 500) when downloading TCX files if the original was a manual GPX upload.
-				# Writing an empty file prevents this file from being redownloaded, similar to the way GPX files are saved even when there are no tracks.
-				# One could be generated here, but that's a bit much. Use the GPX format if you want actual data in every file,
-				# as I believe Garmin provides a GPX file for every activity.
-				print 'Writing empty file since Garmin did not generate a TCX file for this activity...',
-				data = ''
-			elif e.code == 404 and args.format == 'original':
-				# For manual activities (i.e., entered in online without a file upload), there is no original file.
-				# Write an empty file to prevent redownloading it.
-				print 'Writing empty file since there was no original activity data...',
-				data = ''
-			else:
-				raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
-
-		save_file = open(data_filename, file_mode)
-		save_file.write(data)
+		save_file.write(str(results))
 		save_file.close()
 
 		# Write stats to CSV.
@@ -270,10 +204,17 @@ while total_downloaded < total_to_download:
 
 		csv_record = ''
 
-		csv_record += empty_record if 'activityId' not in a['activity'] else '"' + a['activity']['activityId'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityName' not in a['activity'] else '"' + a['activity']['activityName']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityDescription' not in a['activity'] else '"' + a['activity']['activityDescription']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['display'].replace('"', '""') + '",'
+		csv_record += empty_record if 'activityId' not in results else '"' + str(results['activityId']).replace('"', '""') + '",'
+
+		csv_record += empty_record if 'activityName' not in results else '"' + results['activityName'].replace('"', '""') + '",'
+
+		csv_record += empty_record if 'activityDescription' not in results else '"' + results['activityDescription'].replace('"', '""') + '",'
+
+		csv_record += empty_record if 'startTimeLocal' not in results['summaryDTO'] else '"' + results['summaryDTO']['startTimeLocal'].replace('"', '""') + '",'
+
+                print "data: " + csv_record
+                continue
+
 		csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['millis'].replace('"', '""') + '",'
 		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['display'].replace('"', '""') + '",'
 		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['millis'].replace('"', '""') + '",'
