@@ -59,6 +59,18 @@ if args.version:
 cookie_jar = cookielib.CookieJar()
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
 
+def csvFormat(value):
+	csv_record = '"' + str(value).replace('"', '""') + '",'
+        return csv_record
+
+def dictFind(data, keys):
+        try:
+		for key in keys:
+	        	data = data[key]
+        except KeyError:
+        	return ""
+        return data
+
 # url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers.
 def http_req(url, post=None, headers={}):
 	request = urllib2.Request(url)
@@ -203,33 +215,45 @@ while total_downloaded < total_to_download:
 		empty_record = '"",'
 
 		csv_record = ''
+		# csv_record += '"' + activityId.replace('"', '""') + '",'
+		csv_record += csvFormat(activityId)
+                csv_record += csvFormat(dictFind(results, ['activityName', ]))
+                csv_record += csvFormat(dictFind(results, ['activityDescription', ]))
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'startTimeLocal', ]))
 
-		csv_record += empty_record if 'activityId' not in results else '"' + str(results['activityId']).replace('"', '""') + '",'
+                # beginTimestamp (ms)
+		csv_record += empty_record
 
-		csv_record += empty_record if 'activityName' not in results else '"' + results['activityName'].replace('"', '""') + '",'
+                # endTimestamp (display)
+		csv_record += empty_record 
 
-		csv_record += empty_record if 'activityDescription' not in results else '"' + results['activityDescription'].replace('"', '""') + '",'
+                # endTimestamp (ms)
+		csv_record += empty_record
 
-		csv_record += empty_record if 'startTimeLocal' not in results['summaryDTO'] else '"' + results['summaryDTO']['startTimeLocal'].replace('"', '""') + '",'
+                device = dictFind(a, ['activity', 'device', 'display', ])
+                deviceVer = dictFind(a, ['activity', 'device', 'version', ])
+                csv_record += csvFormat(device + deviceVer)
+
+		csv_record += csvFormat(dictFind(a, ['activity', 'activityType', 'parent', 'display' ]))
+		csv_record += csvFormat(dictFind(a, ['activity', 'activityType', 'display' ]))
+
+		csv_record += csvFormat(dictFind(a, ['activity', 'eventType', 'display' ]))
+
+		csv_record += csvFormat(dictFind(a, ['activity', 'activityTimeZone', 'display' ]))
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
+		# csv_record += empty_record if 'maxElevation' not in results['summaryDTO'] else '"' + str(results['summaryDTO']['maxElevation']).replace('"', '""') + '",'
+                # Max elevation (raw)
+		csv_record += empty_record 
+
+                for key in ['startLatitude', 'startLongitude', 'endLatitude', 'endLongitude']:
+			csv_record += csvFormat(dictFind(results, ['summaryDTO', key, ]))
 
                 print "data: " + csv_record
                 continue
 
-		csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['millis'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['millis'].replace('"', '""') + '",'
-		csv_record += empty_record if 'device' not in a['activity'] else '"' + a['activity']['device']['display'].replace('"', '""') + ' ' + a['activity']['device']['version'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['parent']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'eventType' not in a['activity'] else '"' + a['activity']['eventType']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityTimeZone' not in a['activity'] else '"' + a['activity']['activityTimeZone']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginLatitude' not in a['activity'] else '"' + a['activity']['beginLatitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginLongitude' not in a['activity'] else '"' + a['activity']['beginLongitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endLatitude' not in a['activity'] else '"' + a['activity']['endLatitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endLongitude' not in a['activity'] else '"' + a['activity']['endLongitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
+		csv_record += empty_record if 'WeightedMeanMovingPace' not in a['activity']['activitySummary'] else '"' + a['activity']['activitySummary']['weightedMeanMovingPace']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
+
 		csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
 		csv_record += empty_record if 'maxHeartRate' not in a['activity'] else '"' + a['activity']['maxHeartRate']['display'].replace('"', '""') + '",'
 		csv_record += empty_record if 'weightedMeanHeartRate' not in a['activity'] else '"' + a['activity']['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
