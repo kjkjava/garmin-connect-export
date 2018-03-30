@@ -218,7 +218,7 @@ while total_downloaded < total_to_download:
 		# csv_record += '"' + activityId.replace('"', '""') + '",'
 		csv_record += csvFormat(activityId)
                 csv_record += csvFormat(dictFind(results, ['activityName', ]))
-                csv_record += csvFormat(dictFind(results, ['activityDescription', ]))
+                csv_record += csvFormat(dictFind(results, ['description', ]))
 		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'startTimeLocal', ]))
 
                 # beginTimestamp (ms)
@@ -242,72 +242,96 @@ while total_downloaded < total_to_download:
 		csv_record += csvFormat(dictFind(a, ['activity', 'activityTimeZone', 'display' ]))
 
 		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
-		# csv_record += empty_record if 'maxElevation' not in results['summaryDTO'] else '"' + str(results['summaryDTO']['maxElevation']).replace('"', '""') + '",'
                 # Max elevation (raw)
 		csv_record += empty_record 
 
+                # {start, end} X {latitude, longitude}
                 for key in ['startLatitude', 'startLongitude', 'endLatitude', 'endLongitude']:
 			csv_record += csvFormat(dictFind(results, ['summaryDTO', key, ]))
 
-                print "data: " + csv_record
-                continue
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageMovingSpeed', ]))
 
-		csv_record += empty_record if 'WeightedMeanMovingPace' not in a['activity']['activitySummary'] else '"' + a['activity']['activitySummary']['weightedMeanMovingPace']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
+                # weightedMeanMovingSpeed.display
+		csv_record += empty_record 
 
-		csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxHeartRate' not in a['activity'] else '"' + a['activity']['maxHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanHeartRate' not in a['activity'] else '"' + a['activity']['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
-		csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'minHeartRate' not in a['activity'] else '"' + a['activity']['minHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['value'].replace('"', '""') + '"'
+                # maxHeartRate
+		csv_record += empty_record 
+                # weightedMeanHeartRate
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxSpeed', ]))
+                # maxSpeed.value
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'calories', ]))
+                # sumEnergy.value
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'elapsedDuration', ]))
+                # sumElapsedDuration.value
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'movingDuration', ]))
+                # sumMovingDuration.value
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageSpeed', ]))
+                # averageSpeed.value
+		csv_record += empty_record 
+                
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'distance', ]))
+                # distance.value
+		csv_record += empty_record 
+
+                # minHeartRate
+		csv_record += empty_record 
+
+		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
+                # maxElevation.value
+		csv_record += empty_record 
+
+                # gainElevation
+		csv_record += empty_record 
+                # gainElevation.value
+		csv_record += empty_record 
+                # lossElevation
+		csv_record += empty_record 
+                # lossElevation.value
+		csv_record += empty_record 
 
                 # remove any trailing commas - R read.csv doesn't like them.
                 csv_record = csv_record.rstrip(',')
 
 		csv_record += '\n'
 
+                print "data: " + csv_record
+
 		csv_file.write(csv_record.encode('utf8'))
 
-		if args.format == 'gpx':
-			# Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
-			# Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
-			# N.B. You can omit the XML parse (and the associated log messages) to speed things up.
-			gpx = parseString(data)
-			gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
+		#if args.format == 'gpx':
+		#	# Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
+		#	# Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
+		#	# N.B. You can omit the XML parse (and the associated log messages) to speed things up.
+		#	gpx = parseString(data)
+		#	gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
 
-			if gpx_data_exists:
-				print 'Done. GPX data saved.'
-			else:
-				print 'Done. No track points found.'
-		elif args.format == 'original':
-			if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
-				print "Unzipping and removing original files...",
-				zip_file = open(data_filename, 'rb')
-				z = zipfile.ZipFile(zip_file)
-				for name in z.namelist():
-					z.extract(name, args.directory)
-				zip_file.close()
-				remove(data_filename)
-			print 'Done.'
-		else:
-			# TODO: Consider validating other formats.
-			print 'Done.'
+		#	if gpx_data_exists:
+		#		print 'Done. GPX data saved.'
+		#	else:
+		#		print 'Done. No track points found.'
+		#elif args.format == 'original':
+		#	if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
+		#		print "Unzipping and removing original files...",
+		#		zip_file = open(data_filename, 'rb')
+		#		z = zipfile.ZipFile(zip_file)
+		#		for name in z.namelist():
+		#			z.extract(name, args.directory)
+		#		zip_file.close()
+		#		remove(data_filename)
+		#	print 'Done.'
+		#else:
+		#	# TODO: Consider validating other formats.
+		#	print 'Done.'
 	total_downloaded += num_to_download
 # End while loop for multiple chunks.
 
