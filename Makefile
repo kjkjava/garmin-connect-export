@@ -7,7 +7,7 @@ help:
 
 .PHONY: go
 go:
-	./gcexport.py --username aaronferrucci --count $(COUNT) --format original --unzip
+	./gcexport.py --username aaronferrucci --count $(COUNT)
 
 NUM_ACTIVITIES = $(shell find . -name activities.csv | wc -l)
 .PHONY: count_activities_csv

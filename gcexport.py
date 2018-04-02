@@ -25,14 +25,14 @@ from fileinput import filename
 import argparse
 import zipfile
 
-script_version = '1.0.0'
+script_version = '1.2.0'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
 
 parser = argparse.ArgumentParser()
 
-# TODO: Implement verbose and/or quiet options.
-# parser.add_argument('-v', '--verbose', help="increase output verbosity", action="store_true")
+parser.add_argument('--quiet', help="stifle all output", action="store_true")
+parser.add_argument('--debug', help="lots of console output", action="store_true")
 parser.add_argument('--version', help="print version and exit", action="store_true")
 parser.add_argument('--username', help="your Garmin Connect username (otherwise, you will be prompted)", nargs='?')
 parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
@@ -40,15 +40,8 @@ parser.add_argument('--password', help="your Garmin Connect password (otherwise,
 parser.add_argument('-c', '--count', nargs='?', default="1",
 	help="number of recent activities to download, or 'all' (default: 1)")
 
-parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'original'], default="gpx",
-	help="export format; can be 'gpx', 'tcx', or 'original' (default: 'gpx')")
-
 parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
 	help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
-
-parser.add_argument('-u', '--unzip',
-	help="if downloading ZIP files (format: 'original'), unzip the file and removes the ZIP file",
-	action="store_true")
 
 args = parser.parse_args()
 
@@ -87,7 +80,9 @@ def http_req(url, post=None, headers={}):
 
 	return response.read()
 
-print 'Welcome to Garmin Connect Exporter!'
+
+if not args.quiet:
+	print 'Welcome to Garmin Connect Exporter!'
 
 # Create directory for data files.
 if isdir(args.directory):
@@ -166,9 +161,10 @@ while total_downloaded < total_to_download:
 	search_params = {'start': total_downloaded, 'limit': num_to_download}
 	# Query Garmin Connect
         query_url = url_gc_search + urlencode(search_params)
-        print "### query_url:"
-        print query_url
-        print "###"
+	if args.debug:
+	        print "### query_url:"
+	        print query_url
+	        print "###"
 	result = http_req(query_url)
 	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
 
@@ -184,9 +180,10 @@ while total_downloaded < total_to_download:
 	# Pull out just the list of activities.
 	activities = json_results['results']['activities']
 
-        print "### json_results:"
-        print json.dumps(json_results, indent=4, sort_keys=True)
-        print "###"
+	if args.debug:
+	        print "### json_results:"
+	        print json.dumps(json_results, indent=4, sort_keys=True)
+	        print "###"
 
 	# Process each activity.
 	for a in activities:
@@ -196,14 +193,18 @@ while total_downloaded < total_to_download:
                 # now is an int.
                 a['activity']['activityId'] = str(a['activity']['activityId'])
                 activityId = a['activity']['activityId']
-
-		print 'Garmin Connect activity: [' + activityId + ']',
-		print a['activity']['activityName']
+ 
+		if not args.quiet:
+	 		print 'activity: [' + activityId + ']',
+	 		print a['activity']['activityName']
                 modern_activity_url = url_gc_modern_activity + activityId
-                print "url: " + modern_activity_url
+
+		if args.debug:
+                	print "url: " + modern_activity_url
 
 		activity_filename = args.directory + '/' + activityId + '.json'
-                print "filename: " + activity_filename
+		if args.debug:
+                	print "filename: " + activity_filename
                 result = http_req(modern_activity_url)
                 results = json.loads(result)
 
@@ -320,37 +321,16 @@ while total_downloaded < total_to_download:
 
 		csv_record += '\n'
 
-                print "data: " + csv_record
+		if args.debug:
+                	print "data: " + csv_record
 
 		csv_file.write(csv_record.encode('utf8'))
 
-		#if args.format == 'gpx':
-		#	# Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
-		#	# Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
-		#	# N.B. You can omit the XML parse (and the associated log messages) to speed things up.
-		#	gpx = parseString(data)
-		#	gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
-
-		#	if gpx_data_exists:
-		#		print 'Done. GPX data saved.'
-		#	else:
-		#		print 'Done. No track points found.'
-		#elif args.format == 'original':
-		#	if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
-		#		print "Unzipping and removing original files...",
-		#		zip_file = open(data_filename, 'rb')
-		#		z = zipfile.ZipFile(zip_file)
-		#		for name in z.namelist():
-		#			z.extract(name, args.directory)
-		#		zip_file.close()
-		#		remove(data_filename)
-		#	print 'Done.'
-		#else:
-		#	# TODO: Consider validating other formats.
-		#	print 'Done.'
 	total_downloaded += num_to_download
 # End while loop for multiple chunks.
 
 csv_file.close()
 
-print 'Done!'
+if not args.quiet:
+	print 'Done!'
+
