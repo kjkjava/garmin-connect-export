@@ -66,6 +66,9 @@ def dictFind(data, keys):
 
 # url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers.
 def http_req(url, post=None, headers={}):
+	if args.debug:
+		print "### http_req(" + url + ")"
+
 	request = urllib2.Request(url)
 	request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
 	for header_key, header_value in headers.iteritems():
@@ -96,7 +99,7 @@ limit_maximum = 100
 
 # URLs for various services.
 url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
-url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
+url_gc_post_auth = 'https://connect.garmin.com/modern/?'
 url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
 url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
 url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
@@ -124,7 +127,8 @@ if not login_ticket:
 # Chop of 'TGT-' off the beginning, prepend 'ST-0'.
 login_ticket = 'ST-0' + login_ticket[4:]
 
-http_req(url_gc_post_auth + 'ticket=' + login_ticket)
+login_url = url_gc_post_auth + 'ticket=' + login_ticket
+http_req(login_url)
 
 # We should be logged in now.
 if not isdir(args.directory):
