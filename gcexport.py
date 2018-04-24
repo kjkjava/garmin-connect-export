@@ -1,26 +1,56 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 """
 File: gcexport.py
-Author: Kyle Krafka (https://github.com/kjkjava/)
+Original author: Kyle Krafka (https://github.com/kjkjava/)
 Date: April 28, 2015
+Fork author: Michae P (https://github.com/moderation/)
+Date: February 21, 2016
 
 Description:	Use this script to export your fitness data from Garmin Connect.
 				See README.md for more information.
 """
 
+# The version of the script in this branch tries to recreate the CSV output of
+# the original version by kjkjava using the activity-search-service-1.0
+# endpoint (which stopped working somewhere around February 2018). The goal
+# is to minimise the differences to spot remaining issues. To achieve this
+# some shortcomings of the old endpoint are reproduced, e.g. that the
+# endTimestamp is calculated based on the duration and not the elapsed
+# duration (and truncated, not rounded)
+#
+# Remaining differences:
+# - the old version has wrong time zone offsets (no summertime in summer...)
+# - the old version sometimes (or always?) used elapsedDuration for duration
+# - the old version sometimes provided endLongitude/endLatitude when both new JSON outputs won't (e.g. my activity 2134702283)
+# - the old script filled the maxElevation into the minElevation column
+# - the old CSV output has some inexplainable differences (e.g. end timestamp of 87966658,
+#   because the old JSON outputs were not kept
+# - the new endpoint fails to deliver a complete JSON output in about 0.5% of the calls
+# - elevationGain/elevationLoss of null may mean 0 (in particular of the other value is non-null)
+# - for some activities, e.g. 86497297, the data in activities.json and activity_86497297.json differ.
+#   - differences observed in these fields: elevationGain, elevationLoss, maxSpeed, movingDuration
+#   - fields sometimes missing from details even though present in summary: startLatitude, startLongitude
+# TODO: multi-sport activities, e.g. 2536264424 (typeId 89, typeKey 'multi_sport')
+
+from math import floor
+from sets import Set
 from urllib import urlencode
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
 from getpass import getpass
 from sys import argv
 from os.path import isdir
 from os.path import isfile
 from os import mkdir
 from os import remove
+from os import stat
 from xml.dom.minidom import parseString
+from subprocess import call
 
-import urllib2, cookielib, json
+import urllib, urllib2, cookielib, json, re
 from fileinput import filename
+import json
 
 import argparse
 import zipfile
@@ -41,7 +71,7 @@ parser.add_argument('-c', '--count', nargs='?', default="1",
 	help="number of recent activities to download, or 'all' (default: 1)")
 
 parser.add_argument('-f', '--format', nargs='?', choices=['gpx', 'tcx', 'original'], default="gpx",
-	help="export format; can be 'gpx', 'tcx', or 'original' (default: 'gpx')")
+	help="export format; can be 'gpx', 'tcx', 'original' (default: 'gpx')")
 
 parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
 	help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
@@ -58,22 +88,142 @@ if args.version:
 
 cookie_jar = cookielib.CookieJar()
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
+# print cookie_jar
 
 # url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers.
 def http_req(url, post=None, headers={}):
 	request = urllib2.Request(url)
-	request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
+	# request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
+	request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2816.0 Safari/537.36')  # Tell Garmin we're some supported browser.
 	for header_key, header_value in headers.iteritems():
 		request.add_header(header_key, header_value)
 	if post:
+		# print "POSTING"
 		post = urlencode(post)  # Convert dictionary to POST parameter string.
+	# print request.headers
+	# print cookie_jar
+	# print post
+	# print request
 	response = opener.open(request, data=post)  # This line may throw a urllib2.HTTPError.
 
 	# N.B. urllib2 will follow any 302 redirects. Also, the "open" call above may throw a urllib2.HTTPError which is checked for below.
-	if response.getcode() != 200:
-		raise Exception('Bad return code (' + response.getcode() + ') for: ' + url)
+	# print response.getcode()
+	if response.getcode() == 204:
+		# For activities without GPS coordinates, there is no GPX download (204 = no content).
+		# Write an empty file to prevent redownloading it.
+		print 'Writing empty file since there was no GPX activity data...'
+		return ''
+	elif response.getcode() != 200:
+		raise Exception('Bad return code (' + str(response.getcode()) + ') for: ' + url)
 
 	return response.read()
+
+def writeToFile(filename, content):
+	json_file = open(filename, 'a')
+	json_file.write(content)
+	json_file.close()
+
+# idea stolen from https://stackoverflow.com/a/31852401/3686
+def loadProperties(multiline, sep='=', comment_char='#'):
+	props = {}
+	for line in multiline.splitlines():
+		l = line.strip()
+		if l and not l.startswith(comment_char):
+			key_value = l.split(sep)
+			key = key_value[0].strip()
+			value = sep.join(key_value[1:]).strip().strip('"')
+			props[key] = value
+	return props
+
+def valueIfFoundElseKey(dict, key):
+	return dict.get(key, key)
+
+def absentOrNull(element, a):
+	if not a:
+		return True
+	elif element not in a:
+		return True
+	elif a[element]:
+		return False
+	else:
+		return True
+
+def fromActivitiesOrDetail(element, a, detail, detailContainer):
+	if absentOrNull(detailContainer, detail) or absentOrNull(element, detail[detailContainer]):
+		return None if absentOrNull(element, a) else a[element]
+	else:
+		return details[detailContainer][element]
+
+def trunc6(f):
+	return "{0:12.6f}".format(floor(f*1000000)/1000000).lstrip()
+
+# A class building tzinfo objects for fixed-offset time zones.
+# (copied from https://docs.python.org/2/library/datetime.html)
+class FixedOffset(tzinfo):
+    """Fixed offset in minutes east from UTC."""
+
+    def __init__(self, offset, name):
+        self.__offset = timedelta(minutes = offset)
+        self.__name = name
+
+    def utcoffset(self, dt):
+        return self.__offset
+
+    def tzname(self, dt):
+        return self.__name
+
+    def dst(self, dt):
+        return timedelta(0)
+
+# build an 'aware' datetime from two 'naive' datetime objects (that is timestamps
+# as present in the activities.json), using the time difference as offset
+def offsetDateTime(timeLocal, timeGMT):
+	localDT = datetime.strptime(timeLocal, "%Y-%m-%d %H:%M:%S")
+	gmtDT = datetime.strptime(timeGMT, "%Y-%m-%d %H:%M:%S")
+	offset = localDT - gmtDT
+	offsetTz = FixedOffset(offset.seconds/60, "LCL")
+	return localDT.replace(tzinfo=offsetTz)
+
+def hhmmssFromSeconds(sec):
+	return str(timedelta(seconds=int(sec))).zfill(8)
+
+# this is almost the datetime format Garmin used in the activity-search-service
+# JSON 'display' fields (Garmin didn't zero-pad the date and the hour, but %d and %H do)
+ALMOST_RFC_1123 = "%a, %d %b %Y %H:%M"
+
+# map the numeric parentTypeId to its name for the CSV output
+parent_type_id = {
+	1: 'running',
+	2: 'cycling',
+	3: 'hiking',
+	4: 'other',
+	9: 'walking',
+	17: 'any activity type',
+	26: 'swimming',
+	29: 'fitness equipment',
+	71: 'motorcycling',
+	83: 'transition',
+	144: 'diving',
+	149: 'yoga' }
+
+# typeId values using pace instead of speed
+uses_pace = Set([1, 3, 9]) # running, hiking, walking
+
+def paceOrSpeedRaw(typeId, parentTypeId, mps):
+	kmh = 3.6 * mps
+	if (typeId in uses_pace) or (parentTypeId in uses_pace):
+		return 60 / kmh
+	else:
+		return kmh
+
+def paceOrSpeedFormatted(typeId, parentTypeId, mps):
+	kmh = 3.6 * mps
+	if (typeId in uses_pace) or (parentTypeId in uses_pace):
+		# format seconds per kilometer as MM:SS, see https://stackoverflow.com/a/27751293
+		return '{0:02d}:{1:02d}'.format(*divmod(int(round(3600 / kmh)), 60))
+	else:
+		return "{0:.1f}".format(round(kmh, 1))
+
 
 print 'Welcome to Garmin Connect Exporter!'
 
@@ -84,69 +234,117 @@ if isdir(args.directory):
 username = args.username if args.username else raw_input('Username: ')
 password = args.password if args.password else getpass()
 
-# Maximum number of activities you can request at once.  Set and enforced by Garmin.
-limit_maximum = 100
+# Maximum number of activities you can request at once.
+# Used to be 100 and enforced by Garmin for older endpoints; for the current endpoint 'url_gc_search'
+# the limit is not known (I have less than 1000 activities and could get them all in one go)
+limit_maximum = 1000
+
+max_tries = 3
+
+WEBHOST = "https://connect.garmin.com"
+REDIRECT = "https://connect.garmin.com/post-auth/login"
+BASE_URL = "http://connect.garmin.com/en-US/signin"
+GAUTH = "http://connect.garmin.com/gauth/hostname"
+SSO = "https://sso.garmin.com/sso"
+CSS = "https://static.garmincdn.com/com.garmin.connect/ui/css/gauth-custom-v1.2-min.css"
+
+data = {'service': REDIRECT,
+    'webhost': WEBHOST,
+    'source': BASE_URL,
+    'redirectAfterAccountLoginUrl': REDIRECT,
+    'redirectAfterAccountCreationUrl': REDIRECT,
+    'gauthHost': SSO,
+    'locale': 'en_US',
+    'id': 'gauth-widget',
+    'cssUrl': CSS,
+    'clientId': 'GarminConnect',
+    'rememberMeShown': 'true',
+    'rememberMeChecked': 'false',
+    'createAccountShown': 'true',
+    'openCreateAccount': 'false',
+    'usernameShown': 'false',
+    'displayNameShown': 'false',
+    'consumeServiceTicket': 'false',
+    'initialFocus': 'true',
+    'embedWidget': 'false',
+    'generateExtraServiceTicket': 'false'}
+
+print urllib.urlencode(data)
 
 # URLs for various services.
-url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
-url_gc_post_auth = 'https://connect.garmin.com/post-auth/login?'
-url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.0/json/activities?'
-url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
-url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
+url_gc_login     = 'https://sso.garmin.com/sso/login?' + urllib.urlencode(data)
+url_gc_post_auth = 'https://connect.garmin.com/modern/activities?'
+url_gc_summary   = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?start=0&limit=1'
+url_gc_search    = 'https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?'
+url_gc_activity  = 'https://connect.garmin.com/modern/proxy/activity-service/activity/'
+url_gc_device    = 'https://connect.garmin.com/modern/proxy/device-service/deviceservice/app-info/'
+url_gc_act_props = 'https://connect.garmin.com/modern/main/js/properties/activity_types/activity_types.properties'
+url_gc_evt_props = 'https://connect.garmin.com/modern/main/js/properties/event_types/event_types.properties'
+url_gc_gpx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/gpx/activity/'
+url_gc_tcx_activity = 'https://connect.garmin.com/modern/proxy/download-service/export/tcx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
+print 'Request login page'
 http_req(url_gc_login)
+print 'Finish login page'
 
 # Now we'll actually login.
 post_data = {'username': username, 'password': password, 'embed': 'true', 'lt': 'e1s1', '_eventId': 'submit', 'displayNameRequired': 'false'}  # Fields that are passed in a typical Garmin login.
-http_req(url_gc_login, post_data)
+print 'Post login data'
+login_response = http_req(url_gc_login, post_data)
+print 'Finish login post'
+# print login_response
 
-# Get the key.
-# TODO: Can we do this without iterating?
-login_ticket = None
-for cookie in cookie_jar:
-	if cookie.name == 'CASTGC':
-		login_ticket = cookie.value
-		break
+# extract the ticket from the login response
+pattern = re.compile(r".*\?ticket=([-\w]+)\";.*", re.MULTILINE|re.DOTALL)
+match = pattern.match(login_response)
+if not match:
+	raise Exception('Did not get a ticket in the login response. Cannot log in. Did you enter the correct username and password?')
+login_ticket = match.group(1)
+print 'login ticket=' + login_ticket
 
-if not login_ticket:
-	raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
-
-# Chop of 'TGT-' off the beginning, prepend 'ST-0'.
-login_ticket = 'ST-0' + login_ticket[4:]
-
+print 'Request authentication'
+# print url_gc_post_auth + 'ticket=' + login_ticket
 http_req(url_gc_post_auth + 'ticket=' + login_ticket)
+print 'Finished authentication'
 
 # We should be logged in now.
 if not isdir(args.directory):
 	mkdir(args.directory)
 
-csv_filename = args.directory + '/activities.csv'
-csv_existed = isfile(csv_filename)
-
-csv_file = open(csv_filename, 'a')
-
-# Write header to CSV file
-if not csv_existed:
-	csv_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
-
-download_all = False
 if args.count == 'all':
 	# If the user wants to download all activities, first download one,
 	# then the result of that request will tell us how many are available
 	# so we will modify the variables then.
-	total_to_download = 1
-	download_all = True
+	print "Making result summary request ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+	print url_gc_summary
+	result = http_req(url_gc_summary)
+	print "Finished result summary request ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+
+	# Modify total_to_download based on how many activities the server reports.
+	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
+	total_to_download = int(json_results['results']['totalFound'])
 else:
 	total_to_download = int(args.count)
 total_downloaded = 0
 
+device_dict = dict()
+
+# load some dictionaries with lookup data from REST services
+activityTypeProps = http_req(url_gc_act_props)
+# writeToFile(args.directory + '/activity_types.properties', activityTypeProps)
+activityTypeName = loadProperties(activityTypeProps)
+eventTypeProps = http_req(url_gc_evt_props)
+# writeToFile(args.directory + '/event_types.properties', eventTypeProps)
+eventTypeName = loadProperties(eventTypeProps)
+
 # This while loop will download data from the server in multiple chunks, if necessary.
 while total_downloaded < total_to_download:
-	# Maximum of 100... 400 return status if over 100.  So download 100 or whatever remains if less than 100.
-	if total_to_download - total_downloaded > 100:
-		num_to_download = 100
+	# Maximum chunk size 'limit_maximum' ... 400 return status if over maximum.  So download maximum or whatever remains if less than maximum.
+	# As of 2018-03-06 I get return status 500 if over maximum
+	if total_to_download - total_downloaded > limit_maximum:
+		num_to_download = limit_maximum
 	else:
 		num_to_download = total_to_download - total_downloaded
 
@@ -154,49 +352,39 @@ while total_downloaded < total_to_download:
 	# Query Garmin Connect
 	result = http_req(url_gc_search + urlencode(search_params))
 	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-		
 
-	search = json_results['results']['search']
-
-	if download_all:
-		# Modify total_to_download based on how many activities the server reports.
-		total_to_download = int(search['totalFound'])
-		# Do it only once.
-		download_all = False
-
-	# Pull out just the list of activities.
-	activities = json_results['results']['activities']
+	activities = json_results
 
 	# Process each activity.
-	for a in activities:
+	for activity in activities:
 		# Display which entry we're working on.
-		print 'Garmin Connect activity: [' + a['activity']['activityId'] + ']',
-		print a['activity']['activityName']['value']
-		print '\t' + a['activity']['beginTimestamp']['display'] + ',',
-		if 'sumElapsedDuration' in a['activity']:
-			print a['activity']['sumElapsedDuration']['display'] + ',',
-		else:
-			print '??:??:??,',
-		if 'sumDistance' in a['activity']:
-			print a['activity']['sumDistance']['withUnit']
-		else:
-			print '0.00 Miles'
+		activityId = activity['activityId']
+		print 'Garmin Connect activity: [' + str(activityId) + ']',
+		print activity['activityName']
+		print '\t' + str(activity['startTimeLocal']) + ',',
+		print str(activity['elapsedDuration']) + ',',
+		print str(activity['distance'])
 
 		if args.format == 'gpx':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.gpx'
-			download_url = url_gc_gpx_activity + a['activity']['activityId'] + '?full=true'
+			data_filename = args.directory + '/activity_' + str(activityId) + '.gpx'
+			download_url = url_gc_gpx_activity + str(activityId) + '?full=true'
+			# download_url = url_gc_gpx_activity + str(a['activity']['activityId']) + '?full=true' + '&original=true'
+			print download_url
 			file_mode = 'w'
 		elif args.format == 'tcx':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.tcx'
-			download_url = url_gc_tcx_activity + a['activity']['activityId'] + '?full=true'
+			data_filename = args.directory + '/activity_' + str(activityId) + '.tcx'
+			download_url = url_gc_tcx_activity + str(activityId) + '?full=true'
 			file_mode = 'w'
 		elif args.format == 'original':
-			data_filename = args.directory + '/activity_' + a['activity']['activityId'] + '.zip'
-			fit_filename = args.directory + '/' + a['activity']['activityId'] + '.fit'
-			download_url = url_gc_original_activity + a['activity']['activityId']
+			data_filename = args.directory + '/activity_' + str(activityId) + '.zip'
+			fit_filename = args.directory + '/' + str(activityId) + '.fit'
+			download_url = url_gc_original_activity + str(activityId)
 			file_mode = 'wb'
 		else:
 			raise Exception('Unrecognized format.')
+
+		json_filename = args.directory + '/activity_' + str(activityId) + '.json'
+		json_file_mode = 'w'
 
 		if isfile(data_filename):
 			print '\tData file already exists; skipping...'
@@ -228,65 +416,19 @@ while total_downloaded < total_to_download:
 				print 'Writing empty file since there was no original activity data...',
 				data = ''
 			else:
-				raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + ').')
+				raise Exception('Failed. Got an unexpected HTTP error (' + str(e.code) + download_url +').')
 
 		save_file = open(data_filename, file_mode)
 		save_file.write(data)
 		save_file.close()
 
-		# Write stats to CSV.
-		empty_record = '"",'
+		save_file = open(json_filename, json_file_mode)
+		save_file.write(json.dumps(activity))
+		save_file.close()
 
-		csv_record = ''
-
-		csv_record += empty_record if 'activityId' not in a['activity'] else '"' + a['activity']['activityId'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityName' not in a['activity'] else '"' + a['activity']['activityName']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityDescription' not in a['activity'] else '"' + a['activity']['activityDescription']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginTimestamp' not in a['activity'] else '"' + a['activity']['beginTimestamp']['millis'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endTimestamp' not in a['activity'] else '"' + a['activity']['endTimestamp']['millis'].replace('"', '""') + '",'
-		csv_record += empty_record if 'device' not in a['activity'] else '"' + a['activity']['device']['display'].replace('"', '""') + ' ' + a['activity']['device']['version'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['parent']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityType' not in a['activity'] else '"' + a['activity']['activityType']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'eventType' not in a['activity'] else '"' + a['activity']['eventType']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'activityTimeZone' not in a['activity'] else '"' + a['activity']['activityTimeZone']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginLatitude' not in a['activity'] else '"' + a['activity']['beginLatitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'beginLongitude' not in a['activity'] else '"' + a['activity']['beginLongitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endLatitude' not in a['activity'] else '"' + a['activity']['endLatitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'endLongitude' not in a['activity'] else '"' + a['activity']['endLongitude']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
-		csv_record += empty_record if 'weightedMeanMovingSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanMovingSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxHeartRate' not in a['activity'] else '"' + a['activity']['maxHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanHeartRate' not in a['activity'] else '"' + a['activity']['weightedMeanHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['display'].replace('"', '""') + '",'  # The units vary between Minutes per Mile and mph, but withUnit always displays "Minutes per Mile"
-		csv_record += empty_record if 'maxSpeed' not in a['activity'] else '"' + a['activity']['maxSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumEnergy' not in a['activity'] else '"' + a['activity']['sumEnergy']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumElapsedDuration' not in a['activity'] else '"' + a['activity']['sumElapsedDuration']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumMovingDuration' not in a['activity'] else '"' + a['activity']['sumMovingDuration']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'weightedMeanSpeed' not in a['activity'] else '"' + a['activity']['weightedMeanSpeed']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'sumDistance' not in a['activity'] else '"' + a['activity']['sumDistance']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'minHeartRate' not in a['activity'] else '"' + a['activity']['minHeartRate']['display'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'maxElevation' not in a['activity'] else '"' + a['activity']['maxElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'gainElevation' not in a['activity'] else '"' + a['activity']['gainElevation']['value'].replace('"', '""') + '",'
-		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['withUnit'].replace('"', '""') + '",'
-		csv_record += empty_record if 'lossElevation' not in a['activity'] else '"' + a['activity']['lossElevation']['value'].replace('"', '""') + '"'
-		csv_record += '\n'
-
-		csv_file.write(csv_record.encode('utf8'))
-
-		if args.format == 'gpx':
+		if args.format == 'gpx' and data:
 			# Validate GPX data. If we have an activity without GPS data (e.g., running on a treadmill),
-			# Garmin Connect still kicks out a GPX, but there is only activity information, no GPS data.
+			# Garmin Connect still kicks out a GPX (sometimes), but there is only activity information, no GPS data.
 			# N.B. You can omit the XML parse (and the associated log messages) to speed things up.
 			gpx = parseString(data)
 			gpx_data_exists = len(gpx.getElementsByTagName('trkpt')) > 0
@@ -298,19 +440,24 @@ while total_downloaded < total_to_download:
 		elif args.format == 'original':
 			if args.unzip and data_filename[-3:].lower() == 'zip':  # Even manual upload of a GPX file is zipped, but we'll validate the extension.
 				print "Unzipping and removing original files...",
-				zip_file = open(data_filename, 'rb')
-				z = zipfile.ZipFile(zip_file)
-				for name in z.namelist():
-					z.extract(name, args.directory)
-				zip_file.close()
+				print 'Filesize is: ' + str(stat(data_filename).st_size)
+				if stat(data_filename).st_size > 0:
+					zip_file = open(data_filename, 'rb')
+					z = zipfile.ZipFile(zip_file)
+					for name in z.namelist():
+						z.extract(name, args.directory)
+					zip_file.close()
+				else:
+					print 'Skipping 0Kb zip file.'
 				remove(data_filename)
 			print 'Done.'
+		elif args.format == 'json':
+			# print nothing here
+			pass
 		else:
 			# TODO: Consider validating other formats.
 			print 'Done.'
 	total_downloaded += num_to_download
 # End while loop for multiple chunks.
-
-csv_file.close()
 
 print 'Done!'

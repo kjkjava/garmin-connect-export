@@ -63,9 +63,32 @@ Garmin Connect API
 ------------------
 This script is for personal use only. It simulates a standard user session (i.e., in the browser), logging in using cookies and an authorization ticket. This makes the script pretty brittle. If you're looking for a more reliable option, particularly if you wish to use this for some production service, Garmin does offer a paid API service.
 
+### REST endpoints
+
+As this script doesn't use the paid API, the endpoints to use are known by reverse engineering browser sessions. And as the Garmin Connect website changes over time, chances are that this script gets broken.
+
+Small history of the endpoint used by `gcexport.py` to get a list of activities:
+
+- [activity-search-service-1.0](https://connect.garmin.com/proxy/activity-search-service-1.0/json/activities): initial endpoint used since 2015, worked at least until January 2018
+- [activity-search-service-1.2](https://connect.garmin.com/proxy/activity-search-service-1.2/json/activities): endpoint introduced in `gcexport.py` in August 2016. In March 2018 this still works, but doesn't allow you to fetch more than 20 activities, even split over multiple calls (when doing three consecutive calls with 1,19,19 as `limit` parameter, the third one fails with HTTP error 500). The JSON returned by this endpoint however is quite rich (see example in the `json` folder).
+- [activitylist-service](https://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities): endpoint introduced in `gcexport.py` in March 2018. The JSON returned by this endpoint is very different from the activity-search-service-1.2 one (also here see the example in the `json` folder), e.g.
+    - it is concise and offers no redundant information (e.g. only speed, not speed and pace)
+    - the units are not explicitly given and must be deducted (e.g. the speed unit is m/s)
+    - there is less information, e.g. there is only one set of elevation values (not both corrected and uncorrected), and other values like minimum heart rate are missing.
+    - some other information is available only as an ID (e.g. `timeZoneId` or `deviceId`), and more complete information
+      is available by further REST calls (one for each activity and additional ones for device information)
+
+### Limitations of Data Provided by Current Endpoints and Choices Made
+
+- The timezones provided are just the names (e.g. for Central European Time CET you can get either "Europe/Paris" or "(GMT+01:00) Central European Time"), but not the exact offset. Note that the "GMT+01:00" part of the name is hardcoded, so in summer (daylight savings time) Garmin Connect still uses +01:00 in the name even if the offset then is +02:00. To get the offset you need to calculate the difference between the startTimeLocal and the startTimeGMT. The current script writes the calculate offset into the CSV file.
+- The elevation is either uncorrected or corrected, with a flag telling which. The current endpoints don't provide both sets of elevations anymore (older endpoints did provide them both, but these endpoints don't work anymore)
+- The speed written to the CSV file is the speed in km/h for most activities and the pace (min/km) for pedestrial activities (running, walking, hiking). This is easy to change though.
+
+
+
 History
 -------
-The original project was written in PHP (now in the `old` directory), based on "Garmin Connect export to Dailymile" code at http://www.ciscomonkey.net/gc-to-dm-export/ (link has been down for a while). It no longer works due to the way Garmin handles logins. It could be updated, but I decided to rewrite everything in Python for the latest version.
+The original project was written in PHP (formerly in the `old` directory, now deleted), based on "Garmin Connect export to Dailymile" code at http://www.ciscomonkey.net/gc-to-dm-export/ (link has been down for a while). It no longer works due to the way Garmin handles logins. It could be updated, but I decided to rewrite everything in Python for the latest version.
 
 Contributions
 -------------
