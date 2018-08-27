@@ -25,7 +25,47 @@ from fileinput import filename
 import argparse
 import zipfile
 
-script_version = '1.3.0'
+class DeviceInfo():
+	devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
+	keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
+        def __init__(self):
+		self.device_info = {}
+		devices = json.loads(http_req(self.devices_url))
+		for dev in devices:
+		        dev_id = dev['deviceId']
+			this_device = {}
+			for key in self.keys:
+		                this_device[key] = dictFind(dev, [key, ])
+		        self.device_info[dev_id] = this_device
+
+		# backward compatibility hack: prepend ' ', append ".0.0"
+                # to firmware version.
+		for dev_id in self.device_info:
+                        fw = self.device_info[dev_id]['currentFirmwareVersion']
+                        fw = ' ' + fw + ".0.0"
+			self.device_info[dev_id]['currentFirmwareVersion'] = fw
+
+	def printit(self):
+		for dev_id in self.device_info:
+		        print dev_id
+		        for dev_parameter in self.device_info[dev_id]:
+		                print "    " + dev_parameter + ": " + self.device_info[dev_id][dev_parameter]
+
+	def displayName(self, deviceId):
+		try:
+			device = self.device_info[deviceId]['displayName']
+		except KeyError:
+			device = ""
+
+		try:
+			version = self.device_info[deviceId]['currentFirmwareVersion']
+		except KeyError:
+			version = ""
+
+                displayName = device + ' ' + version
+                return displayName
+
+script_version = '1.3.1'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
 
@@ -106,7 +146,6 @@ url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/
 url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
 url_gc_modern_activity = 'https://connect.garmin.com/modern/proxy/activity-service/activity/'
-devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
@@ -134,26 +173,7 @@ http_req(login_url)
 
 # We should be logged in now.
 
-# get device info, put in a dict
-device_info = {}
-devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
-devices = json.loads(http_req(devices_url))
-keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
-for dev in devices:
-        dev_id = dev['deviceId']
-	this_device = {}
-	for key in keys:
-                this_device[key] = dictFind(dev, [key, ])
-        device_info[dev_id] = this_device
-
-# backward compatibility hack: prepend ' ', append ".0.0" to firmware version.
-for dev_id in device_info:
-	device_info[dev_id]['currentFirmwareVersion'] = ' ' + device_info[dev_id]['currentFirmwareVersion'] + ".0.0"
-
-for dev_id in device_info:
-        print dev_id
-        for dev_parameter in device_info[dev_id]:
-                print "    " + dev_parameter + ": " + device_info[dev_id][dev_parameter]
+deviceInfo = DeviceInfo()
 
 # get activity properties, put in a dict
 # This maps cryptic activity typeKeys to display names
@@ -337,11 +357,10 @@ while total_downloaded < total_to_download:
                 # End Timestamp (Raw Milliseconds)
 		csv_record += empty_record
 
-                deviceId = dictFind(a, ['deviceId', ])
-                device = dictFind(device_info[deviceId], ['displayName',])
-                deviceVer = dictFind(device_info[deviceId], ['currentFirmwareVersion',])
                 # Device
-                csv_record += csvFormat(device + ' ' + deviceVer)
+                deviceId = dictFind(a, ['deviceId', ])
+                csv_record += csvFormat(deviceInfo.displayName(deviceId))
+
 		# Activity Parent
                 parentTypeId = dictFind(a, ['activityType', 'parentTypeId',])
                 print "parentTypeId: %d" % parentTypeId
