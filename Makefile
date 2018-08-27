@@ -1,5 +1,7 @@
 SHELL := /bin/bash
 COUNT := 4
+# DEBUG = --debug
+DEBUG =
 .PHONY: help
 help:
 	@echo Usage:
@@ -7,7 +9,7 @@ help:
 
 .PHONY: go
 go:
-	./gcexport.py --username aaronferrucci --count $(COUNT)
+	./gcexport.py $(DEBUG) --username aaronferrucci --count $(COUNT)
 
 NUM_ACTIVITIES = $(shell find . -name activities.csv | wc -l)
 .PHONY: count_activities_csv
