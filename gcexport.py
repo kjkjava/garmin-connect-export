@@ -25,7 +25,7 @@ from fileinput import filename
 import argparse
 import zipfile
 
-script_version = '1.2.0'
+script_version = '1.3.0'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
 
@@ -100,11 +100,13 @@ limit_maximum = 100
 # URLs for various services.
 url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/modern/?'
-url_gc_search    = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
+# url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
+url_gc_search = 'http://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?'
 url_gc_gpx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/gpx/activity/'
 url_gc_tcx_activity = 'http://connect.garmin.com/proxy/activity-service-1.1/tcx/activity/'
 url_gc_original_activity = 'http://connect.garmin.com/proxy/download-service/files/activity/'
 url_gc_modern_activity = 'https://connect.garmin.com/modern/proxy/activity-service/activity/'
+devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
 
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
@@ -131,6 +133,113 @@ login_url = url_gc_post_auth + 'ticket=' + login_ticket
 http_req(login_url)
 
 # We should be logged in now.
+
+# get device info, put in a dict
+device_info = {}
+devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
+devices = json.loads(http_req(devices_url))
+keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
+for dev in devices:
+        dev_id = dev['deviceId']
+	this_device = {}
+	for key in keys:
+                this_device[key] = dictFind(dev, [key, ])
+        device_info[dev_id] = this_device
+
+# backward compatibility hack: prepend ' ', append ".0.0" to firmware version.
+for dev_id in device_info:
+	device_info[dev_id]['currentFirmwareVersion'] = ' ' + device_info[dev_id]['currentFirmwareVersion'] + ".0.0"
+
+for dev_id in device_info:
+        print dev_id
+        for dev_parameter in device_info[dev_id]:
+                print "    " + dev_parameter + ": " + device_info[dev_id][dev_parameter]
+
+# get activity properties, put in a dict
+# This maps cryptic activity typeKeys to display names
+# all:: All Activities
+# golf:: Golf
+# indoor_cycling:: Indoor Cycling
+# ...
+# street_running:: Street Running
+#
+# keys appear in activity records, activityType/typeKey
+
+activity_properties = {}
+activity_properties_url = 'https://connect.garmin.com/modern/main/js/properties/activity_types/activity_types.properties?bust=4.10.1.0'
+activity_properties_req = http_req(activity_properties_url)
+print "### activity_properties"
+aps = activity_properties_req.splitlines()
+for ap in aps:
+        (key, value) = ap.split('=')
+        key = key.replace("activity_type_", "")
+        activity_properties[key] = value
+print "###"
+                
+# get activity type info, put in a dict
+activity_type_info = {}
+activity_type_url = "https://connect.garmin.com/modern/proxy/activity-service/activity/activityTypes"
+activity_types = json.loads(http_req(activity_type_url))
+print "### activity_type_info"
+keys = ['typeKey', ]
+for a_type in activity_types:
+        type_id = a_type['typeId']
+	this_type = {}
+	for key in keys:
+                this_type[key] = dictFind(a_type, [key, ])
+        # Set type from typeKey
+        try:
+        	this_type['type'] = activity_properties[this_type['typeKey']]
+        except:
+        	this_type['type'] = this_type['typeKey']
+        activity_type_info[type_id] = this_type
+
+for a_type in activity_type_info:
+        print a_type
+        for activity_parameter in activity_type_info[a_type]:
+                print "    " + activity_parameter + ": " + str(activity_type_info[a_type][activity_parameter])
+
+print "###"
+
+event_properties = {}
+event_properties_url = 'https://connect.garmin.com/modern/main/js/properties/event_types/event_types.properties?bust=4.10.1.0'
+event_properties_req = http_req(event_properties_url)
+print "### event_properties"
+evs = event_properties_req.splitlines()
+for ev in evs:
+        (key, value) = ev.split('=')
+        event_properties[key] = value
+for ev in event_properties:
+	print "%s: %s" % (ev, event_properties[ev])
+print "###"
+
+# get event type info, put in a dict
+
+event_type_info = {}
+event_type_url = 'https://connect.garmin.com/modern/proxy/activity-service/activity/eventTypes'
+event_types = json.loads(http_req(event_type_url))
+print "### event_type_info"
+keys = ['typeKey', ]
+for e_type in event_types:
+        type_id = e_type['typeId']
+	this_type = {}
+	for key in keys:
+                this_type[key] = dictFind(e_type, [key, ])
+        # Set type from typeKey
+        try:
+        	this_type['type'] = event_properties[this_type['typeKey']]
+        except KeyError:
+        	this_type['type'] = this_type['typeKey']
+
+        event_type_info[type_id] = this_type
+
+for e_type in event_type_info:
+        print e_type
+        for event_parameter in event_type_info[e_type]:
+                print "    " + event_parameter + ": " + str(event_type_info[e_type][event_parameter])
+
+print "###"
+
 if not isdir(args.directory):
 	mkdir(args.directory)
 
@@ -165,15 +274,8 @@ while total_downloaded < total_to_download:
 	search_params = {'start': total_downloaded, 'limit': num_to_download}
 	# Query Garmin Connect
         query_url = url_gc_search + urlencode(search_params)
-	if args.debug:
-	        print "### query_url:"
-	        print query_url
-	        print "###"
 	result = http_req(query_url)
 	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-
-	# search = json_results['results']['search']
-
 	if download_all:
 		# Modify total_to_download based on how many activities the server reports.
 		# total_to_download = int(search['totalFound'])
@@ -181,26 +283,24 @@ while total_downloaded < total_to_download:
 		# Do it only once.
 		download_all = False
 
-	# Pull out just the list of activities.
-	activities = json_results['results']['activities']
 
 	if args.debug:
 	        print "### json_results:"
 	        print json.dumps(json_results, indent=4, sort_keys=True)
 	        print "###"
 
+	# Pull out just the list of activities.
+        # Only the activityId is used.
+        # json_results used to be a deep hierarchy, but ... no longer
+	activities = json_results
+
 	# Process each activity.
 	for a in activities:
-		# Display which entry we're working on.
-
-                # backwards compatibility hack: activityId used to be a string,
-                # now is an int.
-                a['activity']['activityId'] = str(a['activity']['activityId'])
-                activityId = a['activity']['activityId']
+                activityId = str(a['activityId'])
  
 		if not args.quiet:
 	 		print 'activity: [' + activityId + ']',
-	 		print a['activity']['activityName']
+	 		print a['activityName']
                 modern_activity_url = url_gc_modern_activity + activityId
 
 		if args.debug:
@@ -237,17 +337,23 @@ while total_downloaded < total_to_download:
                 # End Timestamp (Raw Milliseconds)
 		csv_record += empty_record
 
-                device = dictFind(a, ['activity', 'device', 'display', ])
-                deviceVer = dictFind(a, ['activity', 'device', 'version', ])
+                deviceId = dictFind(a, ['deviceId', ])
+                device = dictFind(device_info[deviceId], ['displayName',])
+                deviceVer = dictFind(device_info[deviceId], ['currentFirmwareVersion',])
                 # Device
                 csv_record += csvFormat(device + ' ' + deviceVer)
 		# Activity Parent
-		csv_record += csvFormat(dictFind(a, ['activity', 'activityType', 'parent', 'display' ]))
+                parentTypeId = dictFind(a, ['activityType', 'parentTypeId',])
+                print "parentTypeId: %d" % parentTypeId
+		csv_record += csvFormat(dictFind(activity_type_info, [parentTypeId, 'type', ]))
 		# Activity Type
-		csv_record += csvFormat(dictFind(a, ['activity', 'activityType', 'display' ]))
+                typeId = dictFind(a, ['activityType', 'typeId',])
+                print "typeId: %d" % typeId
+		csv_record += csvFormat(dictFind(activity_type_info, [typeId, 'type', ]))
 
                 # Event Type
-		csv_record += csvFormat(dictFind(a, ['activity', 'eventType', 'display' ]))
+                typeId = dictFind(a, ['eventType', 'typeId',])
+		csv_record += csvFormat(dictFind(event_type_info, [typeId, 'type', ]))
 		# Activity Time Zone
 		csv_record += csvFormat(dictFind(results, ['timeZoneUnitDTO', 'timeZone' ]))
 
