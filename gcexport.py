@@ -334,7 +334,7 @@ while total_downloaded < total_to_download:
   # Process each activity.
   for a in activities:
     activityId = str(a['activityId'])
- 
+
     if not args.quiet:
        print 'activity: [' + activityId + ']',
        print a['activityName']
@@ -369,7 +369,7 @@ while total_downloaded < total_to_download:
     csv_record += empty_record
 
     # End Timestamp
-    csv_record += empty_record 
+    csv_record += empty_record
 
     # End Timestamp (Raw Milliseconds)
     csv_record += empty_record
@@ -392,7 +392,7 @@ while total_downloaded < total_to_download:
     csv_record += csvFormat(dictFind(results, ['timeZoneUnitDTO', 'timeZone' ]))
 
     # Max. Elevation
-    csv_record += empty_record 
+    csv_record += empty_record
     # Max. Elevation (Raw)
     # (was in feet previously, now appears to be meters)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
@@ -406,59 +406,59 @@ while total_downloaded < total_to_download:
       csv_record += csvFormat(dictFind(results, ['summaryDTO', key, ]))
 
     # Average Moving Speed
-    csv_record += empty_record 
+    csv_record += empty_record
 
     # Average Moving Speed (Raw)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageMovingSpeed', ]))
 
     # Max. Heart Rate (bpm)
-    csv_record += empty_record 
+    csv_record += empty_record
     # Average Heart Rate (bpm)
-    csv_record += empty_record 
+    csv_record += empty_record
 
     # Max. Speed
-    csv_record += empty_record 
+    csv_record += empty_record
     # Max. Speed (Raw)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxSpeed', ]))
 
     # Calories
-    csv_record += empty_record 
+    csv_record += empty_record
     # Calories (Raw)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'calories', ]))
 
     # Duration (h:m:s)
-    csv_record += empty_record 
+    csv_record += empty_record
     # Duration (Raw Seconds)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'elapsedDuration', ]))
     # Moving Duration (h:m:s)
-    csv_record += empty_record 
+    csv_record += empty_record
     # Moving Duration (Raw Seconds),
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'movingDuration', ]))
     # Average Speed
-    csv_record += empty_record 
+    csv_record += empty_record
     # Average Speed (Raw)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageSpeed', ]))
     # Distance
-    csv_record += empty_record 
+    csv_record += empty_record
     # distance.value
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'distance', ]))
 
     # Max. Heart Rate (bpm)
-    csv_record += empty_record 
+    csv_record += empty_record
 
     # Min. Elevation
-    csv_record += empty_record 
+    csv_record += empty_record
     # Min. Elevation (Raw)
     csv_record += csvFormat(dictFind(results, ['summaryDTO', 'minElevation', ]))
 
     # Elevation Gain
-    csv_record += empty_record 
+    csv_record += empty_record
     # Elevation Gain (Raw)
-    csv_record += empty_record 
+    csv_record += empty_record
     # Elevation Loss
-    csv_record += empty_record 
+    csv_record += empty_record
     # Elevation Loss (Raw)
-    csv_record += empty_record 
+    csv_record += empty_record
 
     # remove any trailing commas - R read.csv doesn't like them.
     csv_record = csv_record.rstrip(',')
