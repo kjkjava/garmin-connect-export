@@ -65,6 +65,27 @@ class DeviceInfo():
     displayName = device + ' ' + version
     return displayName
 
+class Properties():
+  def __init__(self, url, key_trim_prefix = None):
+    self.key_trim_prefix = key_trim_prefix
+
+    self.properties = {}
+    http_data = http_req(url)
+    http_lines = http_data.splitlines()
+    for line in http_lines:
+      (key, value) = line.split('=')
+      if (key_trim_prefix != None):
+        key = key.replace("activity_type_", "")
+      self.properties[key] = value
+
+  # Get a value, default to key as value
+  def get(self, key):
+    try:
+      value = self.properties[key]
+    except KeyError:
+      value = key
+    return value
+
 script_version = '1.3.2'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
@@ -212,7 +233,7 @@ http_req(login_url)
 
 deviceInfo = DeviceInfo()
 
-# get activity properties, put in a dict
+# get activity properties
 # This maps cryptic activity typeKeys to display names
 # all:: All Activities
 # golf:: Golf
@@ -221,23 +242,13 @@ deviceInfo = DeviceInfo()
 # street_running:: Street Running
 #
 # keys appear in activity records, activityType/typeKey
-
-activity_properties = {}
 activity_properties_url = 'https://connect.garmin.com/modern/main/js/properties/activity_types/activity_types.properties?bust=4.10.1.0'
-activity_properties_req = http_req(activity_properties_url)
-print "### activity_properties"
-aps = activity_properties_req.splitlines()
-for ap in aps:
-  (key, value) = ap.split('=')
-  key = key.replace("activity_type_", "")
-  activity_properties[key] = value
-print "###"
+activity_properties = Properties(activity_properties_url, "activity_type_")
 
 # get activity type info, put in a dict
 activity_type_info = {}
 activity_type_url = "https://connect.garmin.com/modern/proxy/activity-service/activity/activityTypes"
 activity_types = json.loads(http_req(activity_type_url))
-print "### activity_type_info"
 keys = ['typeKey', ]
 for a_type in activity_types:
   type_id = a_type['typeId']
@@ -245,37 +256,24 @@ for a_type in activity_types:
   for key in keys:
     this_type[key] = dictFind(a_type, [key, ])
   # Set type from typeKey
-  try:
-    this_type['type'] = activity_properties[this_type['typeKey']]
-  except:
-    this_type['type'] = this_type['typeKey']
+  this_type['type'] = activity_properties.get(this_type['typeKey'])
   activity_type_info[type_id] = this_type
 
-for a_type in activity_type_info:
-  print a_type
-  for activity_parameter in activity_type_info[a_type]:
-    print "    " + activity_parameter + ": " + str(activity_type_info[a_type][activity_parameter])
+if args.debug:
+  print "### activity_type_info"
+  for a_type in activity_type_info:
+    print a_type
+    for activity_parameter in activity_type_info[a_type]:
+      print "    " + activity_parameter + ": " + str(activity_type_info[a_type][activity_parameter])
+  print "###"
 
-print "###"
-
-event_properties = {}
 event_properties_url = 'https://connect.garmin.com/modern/main/js/properties/event_types/event_types.properties?bust=4.10.1.0'
-event_properties_req = http_req(event_properties_url)
-print "### event_properties"
-evs = event_properties_req.splitlines()
-for ev in evs:
-  (key, value) = ev.split('=')
-  event_properties[key] = value
-for ev in event_properties:
-  print "%s: %s" % (ev, event_properties[ev])
-print "###"
+event_properties = Properties(event_properties_url)
 
 # get event type info, put in a dict
-
 event_type_info = {}
 event_type_url = 'https://connect.garmin.com/modern/proxy/activity-service/activity/eventTypes'
 event_types = json.loads(http_req(event_type_url))
-print "### event_type_info"
 keys = ['typeKey', ]
 for e_type in event_types:
   type_id = e_type['typeId']
@@ -283,19 +281,16 @@ for e_type in event_types:
   for key in keys:
     this_type[key] = dictFind(e_type, [key, ])
   # Set type from typeKey
-  try:
-    this_type['type'] = event_properties[this_type['typeKey']]
-  except KeyError:
-    this_type['type'] = this_type['typeKey']
-
+  this_type['type'] = event_properties.get(this_type['typeKey'])
   event_type_info[type_id] = this_type
 
-for e_type in event_type_info:
-  print e_type
-  for event_parameter in event_type_info[e_type]:
-    print "    " + event_parameter + ": " + str(event_type_info[e_type][event_parameter])
-
-print "###"
+if args.debug:
+  print "### event_type_info"
+  for e_type in event_type_info:
+    print e_type
+    for event_parameter in event_type_info[e_type]:
+      print "    " + event_parameter + ": " + str(event_type_info[e_type][event_parameter])
+  print "###"
 
 if not isdir(args.directory):
   mkdir(args.directory)
