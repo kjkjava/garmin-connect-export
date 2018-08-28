@@ -144,8 +144,15 @@ url_gc_modern_activity = 'https://connect.garmin.com/modern/proxy/activity-servi
 # Initially, we need to get a valid session cookie, so we pull the login page.
 http_req(url_gc_login)
 
-# Now we'll actually login.
-post_data = {'username': username, 'password': password, 'embed': 'true', 'lt': 'e1s1', '_eventId': 'submit', 'displayNameRequired': 'false'}  # Fields that are passed in a typical Garmin login.
+# Now we'll actually login, using fields that are passed in a typical
+# Garmin login.
+post_data = {
+  'username': username,
+  'password': password,
+  'embed': 'true',
+  'lt': 'e1s1',
+  '_eventId': 'submit',
+  'displayNameRequired': 'false'}
 http_req(url_gc_login, post_data)
 
 # Get the key.
@@ -159,7 +166,7 @@ for cookie in cookie_jar:
 if not login_ticket:
   raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
 
-# Chop of 'TGT-' off the beginning, prepend 'ST-0'.
+# Chop 'TGT-' off the beginning, prepend 'ST-0'.
 login_ticket = 'ST-0' + login_ticket[4:]
 
 login_url = url_gc_post_auth + 'ticket=' + login_ticket
@@ -357,11 +364,9 @@ while total_downloaded < total_to_download:
 
     # Activity Parent
     parentTypeId = dictFind(a, ['activityType', 'parentTypeId',])
-    print "parentTypeId: %d" % parentTypeId
     csv_record += csvFormat(dictFind(activity_type_info, [parentTypeId, 'type', ]))
     # Activity Type
     typeId = dictFind(a, ['activityType', 'typeId',])
-    print "typeId: %d" % typeId
     csv_record += csvFormat(dictFind(activity_type_info, [typeId, 'type', ]))
 
     # Event Type
