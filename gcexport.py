@@ -2,14 +2,13 @@
 
 """
 File: gcexport.py
-Author: Kyle Krafka (https://github.com/kjkjava/)
-Date: April 28, 2015
-
-Description:	Use this script to export your fitness data from Garmin Connect.
-				See README.md for more information.
+Original author: Kyle Krafka (https://github.com/kjkjava/)
+Description: Use this script to export your fitness data from Garmin's servers.
+             See README.md for more information.
 """
 
 from urllib import urlencode
+import urllib2, cookielib, json
 from datetime import datetime
 from getpass import getpass
 from sys import argv
@@ -17,55 +16,50 @@ from os.path import isdir
 from os.path import isfile
 from os import mkdir
 from os import remove
-from xml.dom.minidom import parseString
-
-import urllib2, cookielib, json
-from fileinput import filename
 
 import argparse
-import zipfile
 
 class DeviceInfo():
-	devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
-	keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
-        def __init__(self):
-		self.device_info = {}
-		devices = json.loads(http_req(self.devices_url))
-		for dev in devices:
-		        dev_id = dev['deviceId']
-			this_device = {}
-			for key in self.keys:
-		                this_device[key] = dictFind(dev, [key, ])
-		        self.device_info[dev_id] = this_device
+  devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
+  keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
+  def __init__(self):
+    self.device_info = {}
+    devices = json.loads(http_req(self.devices_url))
+    for dev in devices:
+      dev_id = dev['deviceId']
+      this_device = {}
+      for key in self.keys:
+        this_device[key] = dictFind(dev, [key, ])
+      self.device_info[dev_id] = this_device
 
-		# backward compatibility hack: prepend ' ', append ".0.0"
-                # to firmware version.
-		for dev_id in self.device_info:
-                        fw = self.device_info[dev_id]['currentFirmwareVersion']
-                        fw = ' ' + fw + ".0.0"
-			self.device_info[dev_id]['currentFirmwareVersion'] = fw
+    # backward compatibility hack: prepend ' ', append ".0.0"
+    # to firmware version.
+    for dev_id in self.device_info:
+      fw = self.device_info[dev_id]['currentFirmwareVersion']
+      fw = ' ' + fw + ".0.0"
+      self.device_info[dev_id]['currentFirmwareVersion'] = fw
 
-	def printit(self):
-		for dev_id in self.device_info:
-		        print dev_id
-		        for dev_parameter in self.device_info[dev_id]:
-		                print "    " + dev_parameter + ": " + self.device_info[dev_id][dev_parameter]
+  def printit(self):
+    for dev_id in self.device_info:
+      print dev_id
+      for dev_parameter in self.device_info[dev_id]:
+        print "    " + dev_parameter + ": " + self.device_info[dev_id][dev_parameter]
 
-	def displayName(self, deviceId):
-		try:
-			device = self.device_info[deviceId]['displayName']
-		except KeyError:
-			device = ""
+  def displayName(self, deviceId):
+    try:
+      device = self.device_info[deviceId]['displayName']
+    except KeyError:
+      device = ""
 
-		try:
-			version = self.device_info[deviceId]['currentFirmwareVersion']
-		except KeyError:
-			version = ""
+    try:
+      version = self.device_info[deviceId]['currentFirmwareVersion']
+    except KeyError:
+      version = ""
 
-                displayName = device + ' ' + version
-                return displayName
+    displayName = device + ' ' + version
+    return displayName
 
-script_version = '1.3.1'
+script_version = '1.3.2'
 current_date = datetime.now().strftime('%Y-%m-%d')
 activities_directory = './' + current_date + '_garmin_connect_export'
 
@@ -78,58 +72,58 @@ parser.add_argument('--username', help="your Garmin Connect username (otherwise,
 parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
 
 parser.add_argument('-c', '--count', nargs='?', default="1",
-	help="number of recent activities to download, or 'all' (default: 1)")
+  help="number of recent activities to download, or 'all' (default: 1)")
 
 parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
-	help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
+  help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
 
 args = parser.parse_args()
 
 if args.version:
-	print argv[0] + ", version " + script_version
-	exit(0)
+  print argv[0] + ", version " + script_version
+  exit(0)
 
 cookie_jar = cookielib.CookieJar()
 opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cookie_jar))
 
 def csvFormat(value):
-	csv_record = '"' + str(value).replace('"', '""') + '",'
-        return csv_record
+  csv_record = '"' + str(value).replace('"', '""') + '",'
+  return csv_record
 
 def dictFind(data, keys):
-        try:
-		for key in keys:
-	        	data = data[key]
-        except KeyError:
-        	return ""
-        return data
+  try:
+    for key in keys:
+      data = data[key]
+  except KeyError:
+    return ""
+  return data
 
 # url is a string, post is a dictionary of POST parameters, headers is a dictionary of headers.
 def http_req(url, post=None, headers={}):
-	if args.debug:
-		print "### http_req(" + url + ")"
+  if args.debug:
+    print "### http_req(" + url + ")"
 
-	request = urllib2.Request(url)
-	request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
-	for header_key, header_value in headers.iteritems():
-		request.add_header(header_key, header_value)
-	if post:
-		post = urlencode(post)  # Convert dictionary to POST parameter string.
-	response = opener.open(request, data=post)  # This line may throw a urllib2.HTTPError.
+  request = urllib2.Request(url)
+  request.add_header('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/1337 Safari/537.36')  # Tell Garmin we're some supported browser.
+  for header_key, header_value in headers.iteritems():
+    request.add_header(header_key, header_value)
+  if post:
+    post = urlencode(post)  # Convert dictionary to POST parameter string.
+  response = opener.open(request, data=post)  # This line may throw a urllib2.HTTPError.
 
-	# N.B. urllib2 will follow any 302 redirects. Also, the "open" call above may throw a urllib2.HTTPError which is checked for below.
-	if response.getcode() != 200:
-		raise Exception('Bad return code (' + response.getcode() + ') for: ' + url)
+  # N.B. urllib2 will follow any 302 redirects. Also, the "open" call above may throw a urllib2.HTTPError which is checked for below.
+  if response.getcode() != 200:
+    raise Exception('Bad return code (' + response.getcode() + ') for: ' + url)
 
-	return response.read()
+  return response.read()
 
 
 if not args.quiet:
-	print 'Welcome to Garmin Connect Exporter!'
+  print 'Welcome to Garmin Connect Exporter!'
 
 # Create directory for data files.
 if isdir(args.directory):
-	print 'Warning: Output directory already exists. Will skip already-downloaded files and append to the CSV file.'
+  print 'Warning: Output directory already exists. Will skip already-downloaded files and append to the CSV file.'
 
 username = args.username if args.username else raw_input('Username: ')
 password = args.password if args.password else getpass()
@@ -158,12 +152,12 @@ http_req(url_gc_login, post_data)
 # TODO: Can we do this without iterating?
 login_ticket = None
 for cookie in cookie_jar:
-	if cookie.name == 'CASTGC':
-		login_ticket = cookie.value
-		break
+  if cookie.name == 'CASTGC':
+    login_ticket = cookie.value
+    break
 
 if not login_ticket:
-	raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
+  raise Exception('Did not get a ticket cookie. Cannot log in. Did you enter the correct username and password?')
 
 # Chop of 'TGT-' off the beginning, prepend 'ST-0'.
 login_ticket = 'ST-0' + login_ticket[4:]
@@ -191,11 +185,11 @@ activity_properties_req = http_req(activity_properties_url)
 print "### activity_properties"
 aps = activity_properties_req.splitlines()
 for ap in aps:
-        (key, value) = ap.split('=')
-        key = key.replace("activity_type_", "")
-        activity_properties[key] = value
+  (key, value) = ap.split('=')
+  key = key.replace("activity_type_", "")
+  activity_properties[key] = value
 print "###"
-                
+
 # get activity type info, put in a dict
 activity_type_info = {}
 activity_type_url = "https://connect.garmin.com/modern/proxy/activity-service/activity/activityTypes"
@@ -203,21 +197,21 @@ activity_types = json.loads(http_req(activity_type_url))
 print "### activity_type_info"
 keys = ['typeKey', ]
 for a_type in activity_types:
-        type_id = a_type['typeId']
-	this_type = {}
-	for key in keys:
-                this_type[key] = dictFind(a_type, [key, ])
-        # Set type from typeKey
-        try:
-        	this_type['type'] = activity_properties[this_type['typeKey']]
-        except:
-        	this_type['type'] = this_type['typeKey']
-        activity_type_info[type_id] = this_type
+  type_id = a_type['typeId']
+  this_type = {}
+  for key in keys:
+    this_type[key] = dictFind(a_type, [key, ])
+  # Set type from typeKey
+  try:
+    this_type['type'] = activity_properties[this_type['typeKey']]
+  except:
+    this_type['type'] = this_type['typeKey']
+  activity_type_info[type_id] = this_type
 
 for a_type in activity_type_info:
-        print a_type
-        for activity_parameter in activity_type_info[a_type]:
-                print "    " + activity_parameter + ": " + str(activity_type_info[a_type][activity_parameter])
+  print a_type
+  for activity_parameter in activity_type_info[a_type]:
+    print "    " + activity_parameter + ": " + str(activity_type_info[a_type][activity_parameter])
 
 print "###"
 
@@ -227,10 +221,10 @@ event_properties_req = http_req(event_properties_url)
 print "### event_properties"
 evs = event_properties_req.splitlines()
 for ev in evs:
-        (key, value) = ev.split('=')
-        event_properties[key] = value
+  (key, value) = ev.split('=')
+  event_properties[key] = value
 for ev in event_properties:
-	print "%s: %s" % (ev, event_properties[ev])
+  print "%s: %s" % (ev, event_properties[ev])
 print "###"
 
 # get event type info, put in a dict
@@ -241,27 +235,27 @@ event_types = json.loads(http_req(event_type_url))
 print "### event_type_info"
 keys = ['typeKey', ]
 for e_type in event_types:
-        type_id = e_type['typeId']
-	this_type = {}
-	for key in keys:
-                this_type[key] = dictFind(e_type, [key, ])
-        # Set type from typeKey
-        try:
-        	this_type['type'] = event_properties[this_type['typeKey']]
-        except KeyError:
-        	this_type['type'] = this_type['typeKey']
+  type_id = e_type['typeId']
+  this_type = {}
+  for key in keys:
+    this_type[key] = dictFind(e_type, [key, ])
+  # Set type from typeKey
+  try:
+    this_type['type'] = event_properties[this_type['typeKey']]
+  except KeyError:
+    this_type['type'] = this_type['typeKey']
 
-        event_type_info[type_id] = this_type
+  event_type_info[type_id] = this_type
 
 for e_type in event_type_info:
-        print e_type
-        for event_parameter in event_type_info[e_type]:
-                print "    " + event_parameter + ": " + str(event_type_info[e_type][event_parameter])
+  print e_type
+  for event_parameter in event_type_info[e_type]:
+    print "    " + event_parameter + ": " + str(event_type_info[e_type][event_parameter])
 
 print "###"
 
 if not isdir(args.directory):
-	mkdir(args.directory)
+  mkdir(args.directory)
 
 csv_filename = args.directory + '/activities.csv'
 csv_existed = isfile(csv_filename)
@@ -270,196 +264,196 @@ csv_file = open(csv_filename, 'a')
 
 # Write header to CSV file
 if not csv_existed:
-	csv_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
+  csv_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
 
 download_all = False
 if args.count == 'all':
-	# If the user wants to download all activities, first download one,
-	# then the result of that request will tell us how many are available
-	# so we will modify the variables then.
-	total_to_download = 1
-	download_all = True
+  # If the user wants to download all activities, first download one,
+  # then the result of that request will tell us how many are available
+  # so we will modify the variables then.
+  total_to_download = 1
+  download_all = True
 else:
-	total_to_download = int(args.count)
+  total_to_download = int(args.count)
 total_downloaded = 0
 
 # This while loop will download data from the server in multiple chunks, if necessary.
 while total_downloaded < total_to_download:
-	# Maximum of 100... 400 return status if over 100.  So download 100 or whatever remains if less than 100.
-	if total_to_download - total_downloaded > 100:
-		num_to_download = 100
-	else:
-		num_to_download = total_to_download - total_downloaded
+  # Maximum of 100... 400 return status if over 100.  So download 100 or whatever remains if less than 100.
+  if total_to_download - total_downloaded > 100:
+    num_to_download = 100
+  else:
+    num_to_download = total_to_download - total_downloaded
 
-	search_params = {'start': total_downloaded, 'limit': num_to_download}
-	# Query Garmin Connect
-        query_url = url_gc_search + urlencode(search_params)
-	result = http_req(query_url)
-	json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-	if download_all:
-		# Modify total_to_download based on how many activities the server reports.
-		# total_to_download = int(search['totalFound'])
-		total_to_download = int(json_results['results']['totalFound'])
-		# Do it only once.
-		download_all = False
+  search_params = {'start': total_downloaded, 'limit': num_to_download}
+  # Query Garmin Connect
+  query_url = url_gc_search + urlencode(search_params)
+  result = http_req(query_url)
+  json_results = json.loads(result)  # TODO: Catch possible exceptions here.
+  if download_all:
+    # Modify total_to_download based on how many activities the server reports.
+    # total_to_download = int(search['totalFound'])
+    total_to_download = int(json_results['results']['totalFound'])
+    # Do it only once.
+    download_all = False
 
 
-	if args.debug:
-	        print "### json_results:"
-	        print json.dumps(json_results, indent=4, sort_keys=True)
-	        print "###"
+  if args.debug:
+    print "### json_results:"
+    print json.dumps(json_results, indent=4, sort_keys=True)
+    print "###"
 
-	# Pull out just the list of activities.
-        # Only the activityId is used.
-        # json_results used to be a deep hierarchy, but ... no longer
-	activities = json_results
+  # Pull out just the list of activities.
+  # Only the activityId is used.
+  # json_results used to be a deep hierarchy, but ... no longer
+  activities = json_results
 
-	# Process each activity.
-	for a in activities:
-                activityId = str(a['activityId'])
+  # Process each activity.
+  for a in activities:
+    activityId = str(a['activityId'])
  
-		if not args.quiet:
-	 		print 'activity: [' + activityId + ']',
-	 		print a['activityName']
-                modern_activity_url = url_gc_modern_activity + activityId
+    if not args.quiet:
+       print 'activity: [' + activityId + ']',
+       print a['activityName']
+    modern_activity_url = url_gc_modern_activity + activityId
 
-		if args.debug:
-                	print "url: " + modern_activity_url
+    if args.debug:
+      print "url: " + modern_activity_url
 
-		activity_filename = args.directory + '/' + activityId + '.json'
-		if args.debug:
-                	print "filename: " + activity_filename
-                result = http_req(modern_activity_url)
-                results = json.loads(result)
+    activity_filename = args.directory + '/' + activityId + '.json'
+    if args.debug:
+      print "filename: " + activity_filename
+    result = http_req(modern_activity_url)
+    results = json.loads(result)
 
-		save_file = open(activity_filename, 'w')
-		save_file.write(json.dumps(results, indent=4, sort_keys=True))
-		save_file.close()
+    save_file = open(activity_filename, 'w')
+    save_file.write(json.dumps(results, indent=4, sort_keys=True))
+    save_file.close()
 
-		# Write stats to CSV.
-		empty_record = '"",'
-		csv_record = ''
-                # Activity ID
-		csv_record += csvFormat(activityId)
-		# Activity Name
-                csv_record += csvFormat(dictFind(results, ['activityName', ]))
-		# Description
-                csv_record += csvFormat(dictFind(results, ['description', ]))
-		# Begin Timestamp
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'startTimeLocal', ]))
+    # Write stats to CSV.
+    empty_record = '"",'
+    csv_record = ''
+    # Activity ID
+    csv_record += csvFormat(activityId)
+    # Activity Name
+    csv_record += csvFormat(dictFind(results, ['activityName', ]))
+    # Description
+    csv_record += csvFormat(dictFind(results, ['description', ]))
+    # Begin Timestamp
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'startTimeLocal', ]))
 
-                # Begin Timestamp (Raw Milliseconds)
-		csv_record += empty_record
+    # Begin Timestamp (Raw Milliseconds)
+    csv_record += empty_record
 
-                # End Timestamp
-		csv_record += empty_record 
+    # End Timestamp
+    csv_record += empty_record 
 
-                # End Timestamp (Raw Milliseconds)
-		csv_record += empty_record
+    # End Timestamp (Raw Milliseconds)
+    csv_record += empty_record
 
-                # Device
-                deviceId = dictFind(a, ['deviceId', ])
-                csv_record += csvFormat(deviceInfo.displayName(deviceId))
+    # Device
+    deviceId = dictFind(a, ['deviceId', ])
+    csv_record += csvFormat(deviceInfo.displayName(deviceId))
 
-		# Activity Parent
-                parentTypeId = dictFind(a, ['activityType', 'parentTypeId',])
-                print "parentTypeId: %d" % parentTypeId
-		csv_record += csvFormat(dictFind(activity_type_info, [parentTypeId, 'type', ]))
-		# Activity Type
-                typeId = dictFind(a, ['activityType', 'typeId',])
-                print "typeId: %d" % typeId
-		csv_record += csvFormat(dictFind(activity_type_info, [typeId, 'type', ]))
+    # Activity Parent
+    parentTypeId = dictFind(a, ['activityType', 'parentTypeId',])
+    print "parentTypeId: %d" % parentTypeId
+    csv_record += csvFormat(dictFind(activity_type_info, [parentTypeId, 'type', ]))
+    # Activity Type
+    typeId = dictFind(a, ['activityType', 'typeId',])
+    print "typeId: %d" % typeId
+    csv_record += csvFormat(dictFind(activity_type_info, [typeId, 'type', ]))
 
-                # Event Type
-                typeId = dictFind(a, ['eventType', 'typeId',])
-		csv_record += csvFormat(dictFind(event_type_info, [typeId, 'type', ]))
-		# Activity Time Zone
-		csv_record += csvFormat(dictFind(results, ['timeZoneUnitDTO', 'timeZone' ]))
+    # Event Type
+    typeId = dictFind(a, ['eventType', 'typeId',])
+    csv_record += csvFormat(dictFind(event_type_info, [typeId, 'type', ]))
+    # Activity Time Zone
+    csv_record += csvFormat(dictFind(results, ['timeZoneUnitDTO', 'timeZone' ]))
 
-		# Max. Elevation
-		csv_record += empty_record 
-                # Max. Elevation (Raw)
-                # (was in feet previously, now appears to be meters)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
+    # Max. Elevation
+    csv_record += empty_record 
+    # Max. Elevation (Raw)
+    # (was in feet previously, now appears to be meters)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxElevation', ]))
 
-                # {start, end} X {latitude, longitude}
-		# Begin Latitude (Decimal Degrees Raw)
-                # Begin Longitude (Decimal Degrees Raw)
-                # End Latitude (Decimal Degrees Raw)
-                # End Longitude (Decimal Degrees Raw)
-                for key in ['startLatitude', 'startLongitude', 'endLatitude', 'endLongitude']:
-			csv_record += csvFormat(dictFind(results, ['summaryDTO', key, ]))
+    # {start, end} X {latitude, longitude}
+    # Begin Latitude (Decimal Degrees Raw)
+    # Begin Longitude (Decimal Degrees Raw)
+    # End Latitude (Decimal Degrees Raw)
+    # End Longitude (Decimal Degrees Raw)
+    for key in ['startLatitude', 'startLongitude', 'endLatitude', 'endLongitude']:
+      csv_record += csvFormat(dictFind(results, ['summaryDTO', key, ]))
 
-                # Average Moving Speed
-		csv_record += empty_record 
+    # Average Moving Speed
+    csv_record += empty_record 
 
-                # Average Moving Speed (Raw)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageMovingSpeed', ]))
+    # Average Moving Speed (Raw)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageMovingSpeed', ]))
 
-                # Max. Heart Rate (bpm)
-		csv_record += empty_record 
-                # Average Heart Rate (bpm)
-		csv_record += empty_record 
+    # Max. Heart Rate (bpm)
+    csv_record += empty_record 
+    # Average Heart Rate (bpm)
+    csv_record += empty_record 
 
-                # Max. Speed
-		csv_record += empty_record 
-                # Max. Speed (Raw)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxSpeed', ]))
+    # Max. Speed
+    csv_record += empty_record 
+    # Max. Speed (Raw)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'maxSpeed', ]))
 
-		# Calories
-		csv_record += empty_record 
-                # Calories (Raw)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'calories', ]))
+    # Calories
+    csv_record += empty_record 
+    # Calories (Raw)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'calories', ]))
 
-                # Duration (h:m:s)
-		csv_record += empty_record 
-                # Duration (Raw Seconds)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'elapsedDuration', ]))
-		# Moving Duration (h:m:s)
-		csv_record += empty_record 
-                # Moving Duration (Raw Seconds),
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'movingDuration', ]))
-		# Average Speed
-		csv_record += empty_record 
-                # Average Speed (Raw)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageSpeed', ]))
-		# Distance                
-		csv_record += empty_record 
-                # distance.value
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'distance', ]))
+    # Duration (h:m:s)
+    csv_record += empty_record 
+    # Duration (Raw Seconds)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'elapsedDuration', ]))
+    # Moving Duration (h:m:s)
+    csv_record += empty_record 
+    # Moving Duration (Raw Seconds),
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'movingDuration', ]))
+    # Average Speed
+    csv_record += empty_record 
+    # Average Speed (Raw)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'averageSpeed', ]))
+    # Distance
+    csv_record += empty_record 
+    # distance.value
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'distance', ]))
 
-                # Max. Heart Rate (bpm)
-		csv_record += empty_record 
+    # Max. Heart Rate (bpm)
+    csv_record += empty_record 
 
-		# Min. Elevation
-		csv_record += empty_record 
-                # Min. Elevation (Raw)
-		csv_record += csvFormat(dictFind(results, ['summaryDTO', 'minElevation', ]))
+    # Min. Elevation
+    csv_record += empty_record 
+    # Min. Elevation (Raw)
+    csv_record += csvFormat(dictFind(results, ['summaryDTO', 'minElevation', ]))
 
-                # Elevation Gain
-		csv_record += empty_record 
-                # Elevation Gain (Raw)
-		csv_record += empty_record 
-                # Elevation Loss
-		csv_record += empty_record 
-		# Elevation Loss (Raw)
-		csv_record += empty_record 
+    # Elevation Gain
+    csv_record += empty_record 
+    # Elevation Gain (Raw)
+    csv_record += empty_record 
+    # Elevation Loss
+    csv_record += empty_record 
+    # Elevation Loss (Raw)
+    csv_record += empty_record 
 
-                # remove any trailing commas - R read.csv doesn't like them.
-                csv_record = csv_record.rstrip(',')
+    # remove any trailing commas - R read.csv doesn't like them.
+    csv_record = csv_record.rstrip(',')
 
-		csv_record += '\n'
+    csv_record += '\n'
 
-		if args.debug:
-                	print "data: " + csv_record
+    if args.debug:
+      print "data: " + csv_record
 
-		csv_file.write(csv_record.encode('utf8'))
+    csv_file.write(csv_record.encode('utf8'))
 
-	total_downloaded += num_to_download
+  total_downloaded += num_to_download
 # End while loop for multiple chunks.
 
 csv_file.close()
 
 if not args.quiet:
-	print 'Done!'
+  print 'Done!'
 
