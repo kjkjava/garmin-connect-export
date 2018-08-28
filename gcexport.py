@@ -21,7 +21,13 @@ import argparse
 
 class DeviceInfo():
   devices_url = "https://connect.garmin.com/modern/proxy/device-service/deviceregistration/devices"
-  keys = ['currentFirmwareVersion', 'displayName', 'partNumber', 'serialNumber', ]
+  keys = [
+    'currentFirmwareVersion',
+    'displayName',
+    'partNumber',
+    'serialNumber',
+  ]
+
   def __init__(self):
     self.device_info = {}
     devices = json.loads(http_req(self.devices_url))
@@ -65,17 +71,47 @@ activities_directory = './' + current_date + '_garmin_connect_export'
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--quiet', help="stifle all output", action="store_true")
-parser.add_argument('--debug', help="lots of console output", action="store_true")
-parser.add_argument('--version', help="print version and exit", action="store_true")
-parser.add_argument('--username', help="your Garmin Connect username (otherwise, you will be prompted)", nargs='?')
-parser.add_argument('--password', help="your Garmin Connect password (otherwise, you will be prompted)", nargs='?')
+parser.add_argument(
+  '--quiet',
+  help="stifle all output",
+  action="store_true"
+)
+parser.add_argument(
+  '--debug',
+  help="lots of console output",
+  action="store_true"
+)
+parser.add_argument(
+  '--version',
+  help="print version and exit",
+  action="store_true"
+)
+parser.add_argument(
+  '--username',
+  help="your Garmin Connect username (otherwise, you will be prompted)",
+  nargs='?'
+)
+parser.add_argument(
+  '--password',
+  help="your Garmin Connect password (otherwise, you will be prompted)",
+  nargs='?'
+)
 
-parser.add_argument('-c', '--count', nargs='?', default="1",
-  help="number of recent activities to download, or 'all' (default: 1)")
+parser.add_argument(
+  '-c',
+  '--count',
+  nargs='?',
+  default="1",
+  help="number of recent activities to download (default: 1)"
+)
 
-parser.add_argument('-d', '--directory', nargs='?', default=activities_directory,
-  help="the directory to export to (default: './YYYY-MM-DD_garmin_connect_export')")
+parser.add_argument(
+  '-d',
+  '--directory',
+  nargs='?',
+  default=activities_directory,
+  help="save directory (default: './YYYY-MM-DD_garmin_connect_export')"
+)
 
 args = parser.parse_args()
 
@@ -132,7 +168,7 @@ password = args.password if args.password else getpass()
 limit_maximum = 100
 
 # URLs for various services.
-url_gc_login     = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
+url_gc_login = 'https://sso.garmin.com/sso/login?service=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&webhost=olaxpw-connect04&source=https%3A%2F%2Fconnect.garmin.com%2Fen-US%2Fsignin&redirectAfterAccountLoginUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&redirectAfterAccountCreationUrl=https%3A%2F%2Fconnect.garmin.com%2Fpost-auth%2Flogin&gauthHost=https%3A%2F%2Fsso.garmin.com%2Fsso&locale=en_US&id=gauth-widget&cssUrl=https%3A%2F%2Fstatic.garmincdn.com%2Fcom.garmin.connect%2Fui%2Fcss%2Fgauth-custom-v1.1-min.css&clientId=GarminConnect&rememberMeShown=true&rememberMeChecked=false&createAccountShown=true&openCreateAccount=false&usernameShown=false&displayNameShown=false&consumeServiceTicket=false&initialFocus=true&embedWidget=false&generateExtraServiceTicket=false'
 url_gc_post_auth = 'https://connect.garmin.com/modern/?'
 # url_gc_search = 'http://connect.garmin.com/proxy/activity-search-service-1.2/json/activities?'
 url_gc_search = 'http://connect.garmin.com/modern/proxy/activitylist-service/activities/search/activities?'
@@ -273,15 +309,7 @@ csv_file = open(csv_filename, 'a')
 if not csv_existed:
   csv_file.write('Activity ID,Activity Name,Description,Begin Timestamp,Begin Timestamp (Raw Milliseconds),End Timestamp,End Timestamp (Raw Milliseconds),Device,Activity Parent,Activity Type,Event Type,Activity Time Zone,Max. Elevation,Max. Elevation (Raw),Begin Latitude (Decimal Degrees Raw),Begin Longitude (Decimal Degrees Raw),End Latitude (Decimal Degrees Raw),End Longitude (Decimal Degrees Raw),Average Moving Speed,Average Moving Speed (Raw),Max. Heart Rate (bpm),Average Heart Rate (bpm),Max. Speed,Max. Speed (Raw),Calories,Calories (Raw),Duration (h:m:s),Duration (Raw Seconds),Moving Duration (h:m:s),Moving Duration (Raw Seconds),Average Speed,Average Speed (Raw),Distance,Distance (Raw),Max. Heart Rate (bpm),Min. Elevation,Min. Elevation (Raw),Elevation Gain,Elevation Gain (Raw),Elevation Loss,Elevation Loss (Raw)\n')
 
-download_all = False
-if args.count == 'all':
-  # If the user wants to download all activities, first download one,
-  # then the result of that request will tell us how many are available
-  # so we will modify the variables then.
-  total_to_download = 1
-  download_all = True
-else:
-  total_to_download = int(args.count)
+total_to_download = int(args.count)
 total_downloaded = 0
 
 # This while loop will download data from the server in multiple chunks, if necessary.
@@ -297,13 +325,6 @@ while total_downloaded < total_to_download:
   query_url = url_gc_search + urlencode(search_params)
   result = http_req(query_url)
   json_results = json.loads(result)  # TODO: Catch possible exceptions here.
-  if download_all:
-    # Modify total_to_download based on how many activities the server reports.
-    # total_to_download = int(search['totalFound'])
-    total_to_download = int(json_results['results']['totalFound'])
-    # Do it only once.
-    download_all = False
-
 
   if args.debug:
     print "### json_results:"
