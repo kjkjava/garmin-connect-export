@@ -27,3 +27,5 @@ class TypeInfo():
          print "    " + param + ": " + str(self.type_info[_type][param])
     print "###"
 
+  def __getitem__(self, key):
+    return self.type_info[key]
