@@ -23,7 +23,7 @@ class GarminLogin():
                     last_req_start = float(last_req_start)
 
                 wait_time = max(0, min_period - (time.time() - last_req_start))
-                print("_rate_limit: wait: '%s'; last_req_start: '%s'" % (wait_time, last_req_start))
+                # print("_rate_limit: wait: '%s'; last_req_start: '%s'" % (wait_time, last_req_start))
                 time.sleep(wait_time)
 
                 self._rate_lock.seek(0)
@@ -34,7 +34,7 @@ class GarminLogin():
 
         def __init__(self):
             rate_lock_path = tempfile.gettempdir() + "/gc_rate.%s.lock" % HTTP_SOURCE_ADDR
-            print("rate_lock_path: '%s'" % rate_lock_path)
+            # print("rate_lock_path: '%s'" % rate_lock_path)
             # Ensure the rate lock file exists (...the easy way)
             open(rate_lock_path, "a").close()
             self._rate_lock = open(rate_lock_path, "r+")
@@ -110,7 +110,7 @@ class GarminLogin():
                 if url.startswith("/"):
                     url = url_prefix + url
                 url_prefix = "/".join(url.split("/")[:3])
-                print("url: '%s'" % url)
+                # print("url: '%s'" % url)
                 gcRedeemResp = session.get(url, allow_redirects=False)
 
                 if current_redirect_count >= max_redirect_count and gcRedeemResp.status_code != 200:
