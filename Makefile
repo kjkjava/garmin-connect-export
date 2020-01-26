@@ -7,9 +7,15 @@ help:
 	@echo Usage:
 	@echo make go COUNT=\<number of activities to download\>
 
+.PHONY: verify_overlap
+# the new activity file should overlap the old one (otherwise vimdiff
+# sometimes seems confused).
+verify_overlap:
+	@grep -q $(shell tail -1 $(shell find . -name activities.csv) | cut --delimiter=, --fields=1) ../garmin_running/activities.csv
+
 .PHONY: go
 go:
-	./gcdownload.py $(DEBUG) --username aaronferrucci --count $(COUNT)
+	./gcdownload.py --username aaronferrucci --count $(COUNT) $(DEBUG)
 
 NUM_ACTIVITIES = $(shell find . -name activities.csv | wc -l)
 .PHONY: count_activities_csv
@@ -20,5 +26,5 @@ count_activities_csv:
 	fi
 
 .PHONY: vimdiff
-vimdiff: count_activities_csv
+vimdiff: verify_overlap
 	gvimdiff ../garmin_running/activities.csv $(shell find . -name activities.csv)
