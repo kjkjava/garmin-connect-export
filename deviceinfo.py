@@ -11,6 +11,11 @@ class DeviceInfo():
   def __init__(self, session):
     self.session = session
     http_data = session.get(DeviceInfo.devices_url, allow_redirects=False)
+    if http_data.status_code != 200:
+        print("DeviceInfo error code: %d" % (http_data.status_code))
+        self.devices = None
+        return
+
     devices = json.loads(http_data.text)
     self.device_info = {}
     for dev in devices:

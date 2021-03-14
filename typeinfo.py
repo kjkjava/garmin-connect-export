@@ -9,6 +9,11 @@ class TypeInfo():
   def __init__(self, session, url, props):
     self.type_info = {}
     http_data = session.get(url, allow_redirects=False)
+    if http_data.status_code != 200:
+        print("TypeInfo error code: %d" % (http_data.status_code))
+        self.type_info = None
+        return
+
     types = json.loads(http_data.text)
     key = 'typeKey'
     for _type in types:

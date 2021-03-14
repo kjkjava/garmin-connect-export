@@ -78,6 +78,9 @@ while total_downloaded < total_to_download:
 
   search_params = {'start': total_downloaded, 'limit': num_to_download}
   http_data = session.get(url_gc_search, params=search_params)
+  if http_data.status_code != 200:
+      print("Activity load error code: %d" % (http_data.status_code))
+
   activities = json.loads(http_data.text)
 
   # print "### activities:"
