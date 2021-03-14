@@ -7,6 +7,12 @@ class GarminLogin():
             "origin": "https://sso.garmin.com"
         }
 
+        # Copied from https://github.com/moderation/garmin-connect-export
+        # Starting around 2/2021, all requests return 402. nk=NT fixes it.
+        _obligatory_headers = {
+          'nk': 'NT'
+        }
+
         # To do: pull in sessioncache from tapiriik, or omit if that's possible
         # _sessionCache = SessionCache("garminconnect", lifetime=timedelta(minutes=120), freshen_on_get=True)
 
@@ -122,7 +128,7 @@ class GarminLogin():
                     break
 
             # self._sessionCache.Set(record.ExternalID if record else email, session)
-            # session.headers.update(self._obligatory_headers)
+            session.headers.update(self._obligatory_headers)
 
             return session
 
