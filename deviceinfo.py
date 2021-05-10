@@ -34,9 +34,9 @@ class DeviceInfo():
 
   def do_print(self):
     for dev_id in self.device_info:
-      print dev_id
+      print(dev_id)
       for dev_parameter in self.device_info[dev_id]:
-        print "    " + dev_parameter + ": " + self.device_info[dev_id][dev_parameter]
+        print("    " + dev_parameter + ": " + self.device_info[dev_id][dev_parameter])
 
   def displayName(self, deviceId):
     try:

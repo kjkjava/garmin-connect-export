@@ -25,12 +25,12 @@ class TypeInfo():
       self.type_info[type_id] = this_type
 
   def do_print(self):
-    print "### type_info"
+    print("### type_info")
     for _type in self.type_info:
-       print _type
+       print(_type)
        for param in self.type_info[_type]:
-         print "    " + param + ": " + str(self.type_info[_type][param])
-    print "###"
+         print("    " + param + ": " + str(self.type_info[_type][param]))
+    print("###")
 
   def __getitem__(self, key):
     return self.type_info[key]
