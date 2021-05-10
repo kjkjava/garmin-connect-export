@@ -32,7 +32,7 @@ devInfo = DeviceInfo(session)
 
 # activity properties
 activity_properties_url = 'https://connect.garmin.com/modern/main/js/properties/activity_types/activity_types.properties?bust=4.10.1.0'
-activity_properties = Properties(session, activity_properties_url, "activity_type_")
+activity_properties = Properties(session, activity_properties_url, b'activity_type_')
 # print("\nActivity Properties:")
 # activity_properties.do_print()
 
@@ -113,7 +113,8 @@ while total_downloaded < total_to_download:
     if args.debug:
       print("data: " + csv_record)
 
-    csv_file.write(csv_record.encode('utf8'))
+    # csv_file.write(csv_record.encode('utf8'))
+    csv_file.write(csv_record)
 
   total_downloaded += num_to_download
 # End while loop for multiple chunks.

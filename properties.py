@@ -14,9 +14,9 @@ class Properties():
 
     http_data = session.get(url, allow_redirects=False)
     for line in http_data.iter_lines():
-      (key, value) = line.split('=')
+      (key, value) = line.split(b'=')
       if (key_trim_prefix != None):
-        key = key.replace(key_trim_prefix, "")
+        key = key.replace(key_trim_prefix, b'')
       self.properties[key] = value
 
   # Get a value, default to key as value
