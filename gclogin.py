@@ -9,8 +9,10 @@ class GarminLogin():
 
         # Copied from https://github.com/moderation/garmin-connect-export
         # Starting around 2/2021, all requests return 402. nk=NT fixes it.
+        # May 2021 it became necessary to supply a User-Agent.
         _obligatory_headers = {
-          'nk': 'NT'
+          'nk': 'NT',
+          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.69 Safari/537.36',
         }
 
         # To do: pull in sessioncache from tapiriik, or omit if that's possible
@@ -48,6 +50,7 @@ class GarminLogin():
         def _get_session(self, email, password):
 
             session = requests.Session()
+            session.headers.update(self._obligatory_headers)
 
             # JSIG CAS, cool I guess.
             # Not quite OAuth though, so I'll continue to collect raw credentials.
@@ -84,26 +87,26 @@ class GarminLogin():
             # I may never understand what motivates people to mangle a perfectly good protocol like HTTP in the ways they do...
             preResp = session.get("https://sso.garmin.com/sso/signin", params=params)
             if preResp.status_code != 200:
-                raise APIException("SSO prestart error %s %s" % (preResp.status_code, preResp.text))
+                raise Exception("SSO prestart error %s %s" % (preResp.status_code, preResp.text))
 
             ssoResp = session.post("https://sso.garmin.com/sso/signin", headers=self._garmin_signin_headers, params=params, data=data, allow_redirects=False)
             if ssoResp.status_code != 200 or "temporarily unavailable" in ssoResp.text:
-                raise APIException("SSO error %s %s" % (ssoResp.status_code, ssoResp.text))
+                raise Exception("SSO error %s %s" % (ssoResp.status_code, ssoResp.text))
 
             if ">sendEvent('FAIL')" in ssoResp.text:
-                raise APIException("Invalid login", block=True, user_exception=UserException(UserExceptionType.Authorization, intervention_required=True))
+                raise Exception("Invalid login", block=True, user_exception=UserException(UserExceptionType.Authorization, intervention_required=True))
             if ">sendEvent('ACCOUNT_LOCKED')" in ssoResp.text:
-                raise APIException("Account Locked", block=True, user_exception=UserException(UserExceptionType.Locked, intervention_required=True))
+                raise Exception("Account Locked", block=True, user_exception=UserException(UserExceptionType.Locked, intervention_required=True))
 
             if "renewPassword" in ssoResp.text:
-                raise APIException("Reset password", block=True, user_exception=UserException(UserExceptionType.RenewPassword, intervention_required=True))
+                raise Exception("Reset password", block=True, user_exception=UserException(UserExceptionType.RenewPassword, intervention_required=True))
 
             # ...AND WE'RE NOT DONE YET!
             self._rate_limit()
 
             gcRedeemResp = session.get("https://connect.garmin.com/modern", allow_redirects=False)
             if gcRedeemResp.status_code != 302:
-                raise APIException("GC redeem-start error %s %s" % (gcRedeemResp.status_code, gcRedeemResp.text))
+                raise Exception("GC redeem-start error %s %s" % (gcRedeemResp.status_code, gcRedeemResp.text))
             url_prefix = "https://connect.garmin.com"
             # There are 6 redirects that need to be followed to get the correct cookie
             # ... :(
@@ -120,7 +123,7 @@ class GarminLogin():
                 gcRedeemResp = session.get(url, allow_redirects=False)
 
                 if current_redirect_count >= max_redirect_count and gcRedeemResp.status_code != 200:
-                    raise APIException("GC redeem %d/%d error %s %s" % (current_redirect_count, max_redirect_count, gcRedeemResp.status_code, gcRedeemResp.text))
+                    raise Exception("GC redeem %d/%d error %s %s" % (current_redirect_count, max_redirect_count, gcRedeemResp.status_code, gcRedeemResp.text))
                 if gcRedeemResp.status_code == 200 or gcRedeemResp.status_code == 404:
                     break
                 current_redirect_count += 1
@@ -128,7 +131,6 @@ class GarminLogin():
                     break
 
             # self._sessionCache.Set(record.ExternalID if record else email, session)
-            session.headers.update(self._obligatory_headers)
 
             return session
 
