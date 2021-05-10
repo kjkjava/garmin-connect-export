@@ -16,7 +16,7 @@ from getpass import getpass
 script_version = '1.4.0'
 args = get_args()
 if args.version:
-  print argv[0] + ", version " + script_version
+  print(argv[0] + ", version " + script_version)
   exit(0)
 
 # utilities - put these somewhere else?
@@ -91,18 +91,18 @@ while total_downloaded < total_to_download:
     activityId = str(a['activityId'])
 
     if not args.quiet:
-       print 'activity: [' + activityId + ']',
-       print a['activityName']
+       print('activity: [' + activityId + ']')
+       print(a['activityName'])
     modern_activity_url = url_gc_modern_activity + activityId
     if args.debug:
-      print "url: " + modern_activity_url
+      print("url: " + modern_activity_url)
 
     result = session.get(modern_activity_url)
     results = json.loads(result.text)
 
     activity_filename = args.directory + '/' + activityId + '.json'
     if args.debug:
-      print "filename: " + activity_filename
+      print("filename: " + activity_filename)
 
     save_file = open(activity_filename, 'w')
     save_file.write(json.dumps(results, indent=4, sort_keys=True))
@@ -111,7 +111,7 @@ while total_downloaded < total_to_download:
     # Write stats to CSV.
     csv_record = activity_to_csv(results, a, devInfo, activity_type_info, event_type_info)
     if args.debug:
-      print "data: " + csv_record
+      print("data: " + csv_record)
 
     csv_file.write(csv_record.encode('utf8'))
 
@@ -121,5 +121,5 @@ while total_downloaded < total_to_download:
 csv_file.close()
 
 if not args.quiet:
-  print 'Done!'
+  print('Done!')
 
