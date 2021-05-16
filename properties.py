@@ -5,7 +5,8 @@ class Properties():
      in the dict are accessed by get(), which provides a default value.
 
      Data from the URL are expected to be in string form, with multiple lines
-     in key=value format.
+     in key=value format. (At some point strings became bytes. I store both
+     string and bytes values, for now.)
 
      If key_trim_prefix is provided, its value is deleted from key names.
   """
@@ -18,6 +19,8 @@ class Properties():
       if (key_trim_prefix != None):
         key = key.replace(key_trim_prefix, b'')
       self.properties[key] = value
+      # key, value are bytes. record a parallel string value
+      self.properties[key.decode('utf-8')] = value.decode('utf-8')
 
   # Get a value, default to key as value
   def get(self, key):
